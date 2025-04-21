@@ -70,6 +70,26 @@ bool checkValidationLayerSupport() {
     return true;
 }
 
+/***
+ * return the required list of extension based on wheter validation
+ * layer is set or not
+ */
+std::vector<const char*> getRequiredExtensions() {
+    uint32_t glfwExtensionCount = 0;
+    const char** glfwExtensions;
+
+    // the extension required by GLFW are always required
+    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+    if (ENABLE_VALIDATION_LAYERS) {
+        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
+
+    return extensions;
+}
+
+
 class HelloTriangleApplication {
 public:
     void run() {
@@ -120,13 +140,9 @@ private:
             createInfo.enabledLayerCount = 0;
         }
 
-        uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions;
-
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-        createInfo.enabledExtensionCount = glfwExtensionCount;
-        createInfo.ppEnabledExtensionNames = glfwExtensions;
+        auto extensions = getRequiredExtensions();
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+        createInfo.ppEnabledExtensionNames = extensions.data();
 
         createInfo.enabledLayerCount = 0;
 
