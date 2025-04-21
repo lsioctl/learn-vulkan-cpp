@@ -27,6 +27,12 @@ sudo apt install libglm-dev
 sudo apt install libxxf86vm-dev libxi-dev
 ```
 
+Note: missing validation layers (commented out because I had issues with apt) so:
+
+```bash
+sudo apt install vulkan-validationlayers-dev
+```
+
 ## Note on my Linux (no nvidia driver)
 
 `vkcube` runs on embedded intel GPU

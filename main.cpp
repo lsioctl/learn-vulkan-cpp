@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
+#include <cstring>
 
 void error_callback(int error, const char* description)
 {
@@ -31,6 +32,44 @@ void print_extensions() {
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
+
+const std::vector<const char*> VALIDATION_LAYERS = {
+    "VK_LAYER_KHRONOS_validation"
+};
+
+#ifdef NDEBUG
+    const bool enableValidationLayers = false;
+#else
+    const bool ENABLE_VALIDATION_LAYERS = true;
+#endif
+
+bool checkValidationLayerSupport() {
+    uint32_t layerCount;
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+    std::vector<VkLayerProperties> availableLayers(layerCount);
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    for (const char* layerName : VALIDATION_LAYERS) {
+        bool layerFound = false;
+
+        for (const auto& layerProperties : availableLayers) {
+            std::cout << layerName << std::endl;
+            std::cout << layerProperties.layerName << std::endl;
+            if (strcmp(layerName, layerProperties.layerName) == 0) {
+                layerFound = true;
+                break;
+            }
+        }
+
+        if (!layerFound) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 class HelloTriangleApplication {
 public:
     void run() {
@@ -53,8 +92,14 @@ private:
     }
 
     void createInstance() {
+        if (ENABLE_VALIDATION_LAYERS && !checkValidationLayerSupport()) {
+            throw std::runtime_error("validation layers requested, but not available!");
+        }
+
         // The instance is the connection between your application and the Vulkan library
         VkApplicationInfo appInfo{};
+
+        // a lot of information on vk is passed through structs instead of function parameters
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         appInfo.pApplicationName = "Hello Triangle";
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -62,9 +107,18 @@ private:
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.apiVersion = VK_API_VERSION_1_0;
 
+        // a lot of information on vk is passed through structs instead of function parameters
         VkInstanceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appInfo;
+        // Here checkValidationLayerSupport has already passed
+        // TODO: clumsy in the control flow
+        if (ENABLE_VALIDATION_LAYERS) {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
+            createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
+        } else {
+            createInfo.enabledLayerCount = 0;
+        }
 
         uint32_t glfwExtensionCount = 0;
         const char** glfwExtensions;
