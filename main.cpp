@@ -120,6 +120,20 @@ VkResult createDebugUtilsMessengerEXT(
     }
 }
 
+/***
+ * proxy function
+ * vkDestroyDebugUtilsMessengerEXT is an extension function and so it not
+ * automatically loaded
+ * we have to look up the address ourself with vkGetInstanceProcAddr
+ */
+void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
+    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    if (func != nullptr) {
+        func(instance, debugMessenger, pAllocator);
+    }
+}
+
+
 
 class HelloTriangleApplication {
 public:
@@ -223,6 +237,9 @@ private:
     }
 
     void cleanup() {
+        if (ENABLE_VALIDATION_LAYERS) {
+            destroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
+        }
         // As we do not use RAII for now, destroy is needed
         vkDestroyInstance(instance_, nullptr);
         glfwDestroyWindow(window_);
