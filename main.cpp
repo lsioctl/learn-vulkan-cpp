@@ -89,6 +89,37 @@ std::vector<const char*> getRequiredExtensions() {
     return extensions;
 }
 
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData) {
+
+    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+
+    return VK_FALSE;
+}
+
+/***
+ * proxy function
+ * vkCreateDebugUtilsMessengerEXT is an extension function and so it not
+ * automatically loaded
+ * we have to look up the address ourself with vkGetInstanceProcAddr
+ */
+VkResult createDebugUtilsMessengerEXT(
+    VkInstance instance, 
+    const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
+    const VkAllocationCallbacks* pAllocator, 
+    VkDebugUtilsMessengerEXT* pDebugMessenger
+) {
+    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+    if (func != nullptr) {
+        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+    } else {
+        return VK_ERROR_EXTENSION_NOT_PRESENT;
+    }
+}
+
 
 class HelloTriangleApplication {
 public:
@@ -102,6 +133,7 @@ public:
 private:
     GLFWwindow* window_;
     VkInstance instance_;
+    VkDebugUtilsMessengerEXT debugMessenger_;
     void initWindow() {
         glfwSetErrorCallback(error_callback);
         glfwInit();
@@ -153,9 +185,35 @@ private:
         }
     }
 
+    void setupDebugMessenger() {
+        if (!ENABLE_VALIDATION_LAYERS) return;
+
+        VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        // all types execept VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT 
+        // here to receive notifications about possible problems while leaving out 
+        // verbose general debug info.
+        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | 
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | 
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        // all types enabled here
+        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | 
+            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | 
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        createInfo.pfnUserCallback = debugCallback;
+        createInfo.pUserData = nullptr; // Optional
+
+        if (createDebugUtilsMessengerEXT(instance_, &createInfo, nullptr, &debugMessenger_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to set up debug messenger!");
+        }
+    }
+
+    
+
     void initVulkan() {
         print_extensions();
         createInstance();
+        setupDebugMessenger();
     }
 
     void mainLoop() {
