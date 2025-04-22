@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <vector>
 #include <cstring>
+#include <map>
+
 
 void ErrorCallback(int error, const char* description)
 {
@@ -133,6 +135,53 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
     }
 }
 
+/***
+ * Not used for now, just an example of what we could do to pickup
+ * a GPU
+ */
+bool IsDeviceSuitableAdvancedExample(VkPhysicalDevice device) {
+    VkPhysicalDeviceProperties deviceProperties;
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+    return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
+           deviceFeatures.geometryShader;
+}
+
+/***
+ * For now, every device supporting Vulkan is OK
+ */
+bool IsDeviceSuitable(VkPhysicalDevice device) {
+    return true;
+}
+
+/***
+ * Not used for now
+ */
+int RateDeviceSuitability(VkPhysicalDevice device) {
+    VkPhysicalDeviceProperties deviceProperties;
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+    int score = 0;
+
+    // Discrete GPUs have a significant performance advantage
+    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+        score += 1000;
+    }
+
+    // Maximum possible size of textures affects graphics quality
+    score += deviceProperties.limits.maxImageDimension2D;
+
+    // Application can't function without geometry shaders
+    if (!deviceFeatures.geometryShader) {
+        return 0;
+    }
+
+    return score;
+}
 
 
 class HelloTriangleApplication {
@@ -148,6 +197,11 @@ private:
     GLFWwindow* window_;
     VkInstance instance_;
     VkDebugUtilsMessengerEXT debugMessenger_;
+    /**
+     * This will be destroyed when vkInstance will be destroyed
+     * so no need to do anything in Cleanup() about it
+     * */
+    VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
     void InitWindow() {
         glfwSetErrorCallback(ErrorCallback);
         glfwInit();
@@ -239,7 +293,62 @@ private:
         }
     }
 
-    
+    /***
+     * pickup the first GPU supporting vulkan
+     */
+    void PickPhysicalDevice() {
+        uint32_t deviceCount = 0;
+        vkEnumeratePhysicalDevices(instance_, &deviceCount, nullptr);
+
+        if (deviceCount == 0) {
+            throw std::runtime_error("failed to find GPUs with Vulkan support!");
+        }
+
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(instance_, &deviceCount, devices.data());
+
+        // Pick the first suitable device
+        for (const auto& device : devices) {
+            if (IsDeviceSuitable(device)) {
+                physicalDevice_ = device;
+                break;
+            }
+        }
+
+        if (physicalDevice_ == VK_NULL_HANDLE) {
+            throw std::runtime_error("failed to find a suitable GPU!");
+        }
+    }
+
+    /***
+     * Not used for now, pickup GPU with the highest score
+     */
+    void PickPhysicalDeviceByScore() {
+        uint32_t deviceCount = 0;
+        vkEnumeratePhysicalDevices(instance_, &deviceCount, nullptr);
+
+        if (deviceCount == 0) {
+            throw std::runtime_error("failed to find GPUs with Vulkan support!");
+        }
+
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(instance_, &deviceCount, devices.data());
+
+        // Use an ordered map to automatically sort candidates by increasing score
+        std::multimap<int, VkPhysicalDevice> candidates;
+
+        for (const auto& device : devices) {
+            int score = RateDeviceSuitability(device);
+            candidates.insert(std::make_pair(score, device));
+        }
+
+        // Check if the best candidate is suitable at all
+        if (candidates.rbegin()->first > 0) {
+            physicalDevice_ = candidates.rbegin()->second;
+        } else {
+            throw std::runtime_error("failed to find a suitable GPU!");
+        }
+    }
 
     void InitVulkan() {
         PrintExtensions();
