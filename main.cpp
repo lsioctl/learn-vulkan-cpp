@@ -157,6 +157,22 @@ private:
         // std::cout << window_ << std::endl;
     }
 
+    void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
+        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        // all types execept VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT 
+        // here to receive notifications about possible problems while leaving out 
+        // verbose general debug info.
+        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | 
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | 
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        // all types enabled here
+        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | 
+            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | 
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        createInfo.pfnUserCallback = DebugCallback;
+        createInfo.pUserData = nullptr; // Optional
+    }
+
     void CreateInstance() {
         if (ENABLE_VALIDATION_LAYERS && !CheckValidationLayerSupport()) {
             throw std::runtime_error("validation layers requested, but not available!");
@@ -177,20 +193,33 @@ private:
         VkInstanceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appInfo;
+        
+        // create an additional debuger for vkCreateInstance and vkDestroyInstance
+        // TODO: a bit unclear to me why this is written by the doc:
+        /***
+         * The debugCreateInfo variable is placed outside the if statement to ensure that 
+         * it is not destroyed before the vkCreateInstance call. By creating an additional 
+         * debug messenger this way it will automatically be used during vkCreateInstance 
+         * and vkDestroyInstance and cleaned up after that.
+         */
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
         // Here checkValidationLayerSupport has already passed
         // TODO: clumsy in the control flow
         if (ENABLE_VALIDATION_LAYERS) {
             createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
             createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
+
+            PopulateDebugMessengerCreateInfo(debugCreateInfo);
+            createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
         } else {
             createInfo.enabledLayerCount = 0;
+
+            createInfo.pNext = nullptr;
         }
 
         auto extensions = GetRequiredExtensions();
         createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
         createInfo.ppEnabledExtensionNames = extensions.data();
-
-        createInfo.enabledLayerCount = 0;
 
         // Note: there is a RAII way to do instead of this: find this an migrate
         // to it when the tutorial is finished
@@ -203,20 +232,8 @@ private:
         if (!ENABLE_VALIDATION_LAYERS) return;
 
         VkDebugUtilsMessengerCreateInfoEXT createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        // all types execept VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT 
-        // here to receive notifications about possible problems while leaving out 
-        // verbose general debug info.
-        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | 
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | 
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        // all types enabled here
-        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | 
-            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | 
-            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        createInfo.pfnUserCallback = DebugCallback;
-        createInfo.pUserData = nullptr; // Optional
-
+        PopulateDebugMessengerCreateInfo(createInfo);
+        
         if (CreateDebugUtilsMessengerEXT(instance_, &createInfo, nullptr, &debugMessenger_) != VK_SUCCESS) {
             throw std::runtime_error("failed to set up debug messenger!");
         }
@@ -238,10 +255,14 @@ private:
 
     void Cleanup() {
         if (ENABLE_VALIDATION_LAYERS) {
+            // Removing this triggers validation layer error on vkDestroy
+            // ... The Vulkan spec states: All child objects created using instance must 
+            // have been destroyed prior to destroying instance ...
             DestroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
         }
         // As we do not use RAII for now, destroy is needed
         vkDestroyInstance(instance_, nullptr);
+
         glfwDestroyWindow(window_);
 
         glfwTerminate();
