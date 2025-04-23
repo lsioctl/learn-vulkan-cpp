@@ -230,7 +230,18 @@ private:
      * This will be destroyed when vkInstance will be destroyed
      * so no need to do anything in Cleanup() about it
      * */
-    VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
+    VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
+    /**
+     * logical device
+     */
+    VkDevice device_;
+    /**
+     * Queues are created with the logical devices
+     * store a handle to the graphics queue
+     * Device queues are implicitly cleaned up when the device is destroyed, 
+     * so we don't need to do anything in cleanup.
+     */
+    VkQueue graphicsQueue_;
     void InitWindow() {
         glfwSetErrorCallback(ErrorCallback);
         glfwInit();
@@ -339,12 +350,12 @@ private:
         // Pick the first suitable device
         for (const auto& device : devices) {
             if (IsDeviceSuitable(device)) {
-                physicalDevice_ = device;
+                physical_device_ = device;
                 break;
             }
         }
 
-        if (physicalDevice_ == VK_NULL_HANDLE) {
+        if (physical_device_ == VK_NULL_HANDLE) {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
     }
@@ -373,16 +384,83 @@ private:
 
         // Check if the best candidate is suitable at all
         if (candidates.rbegin()->first > 0) {
-            physicalDevice_ = candidates.rbegin()->second;
+            physical_device_ = candidates.rbegin()->second;
         } else {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
     }
 
+    void CreateLogicalDevice() {
+        // Specify the queues to be created
+        // TODO: dedicated function ?
+        QueueFamilyIndices indices = FindQueueFamilies(physical_device_);
+
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        // right now we are only interested in a queue with graphics capabilities
+        queueCreateInfo.queueFamilyIndex = indices.graphics_family.value();
+        // we need only one queue
+        // TODO: understand this
+        /**
+         * The currently available drivers will only allow you to create a small number 
+         * of queues for each queue family and you don't really need more than one. 
+         * That's because you can create all of the command buffers on multiple threads 
+         * and then submit them all at once on the main thread with a single low-overhead call
+         */
+        queueCreateInfo.queueCount = 1;
+        // This is required even if there is only a single queue:
+        // priority between 0.0 and 1.0
+        float queue_priority = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queue_priority;
+
+        // TODO: use what we saw previously with  vkGetPhysicalDeviceFeatures
+        // like geometry shaders
+        // for now VK_FALSE
+        VkPhysicalDeviceFeatures deviceFeatures{};
+
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+        createInfo.pQueueCreateInfos = &queueCreateInfo;
+        createInfo.queueCreateInfoCount = 1;
+
+        createInfo.pEnabledFeatures = &deviceFeatures;
+
+        // We don't need device specific extension right now
+        // Note: it looks like physical device extensions's logic
+        // but here we are on logical device
+        // so for example some logical devices will be compute only
+        // or graphic only with VK_KHR_swapchain
+        createInfo.enabledExtensionCount = 0;
+
+        // Below code if for older versions
+        // as newer implementations (since 1.3 ?)
+        // do not distinguish between instance and device specific validation layers
+        // and below information is discarded
+        if (ENABLE_VALIDATION_LAYERS) {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
+            createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
+        } else {
+            createInfo.enabledLayerCount = 0;
+        }
+
+        if (vkCreateDevice(physical_device_, &createInfo, nullptr, &device_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create logical device!");
+        }
+
+        // retrive queue handle
+        vkGetDeviceQueue(device_, indices.graphics_family.value(), 0, &graphicsQueue_);
+
+    }
+
+
+
     void InitVulkan() {
         PrintExtensions();
         CreateInstance();
         SetupDebugMessenger();
+        PickPhysicalDevice();
+        CreateLogicalDevice();
     }
 
     void MainLoop() {
@@ -398,6 +476,10 @@ private:
             // have been destroyed prior to destroying instance ...
             DestroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
         }
+
+        // This is caught by validation layer message if forgotten
+        vkDestroyDevice(device_, nullptr);
+
         // As we do not use RAII for now, destroy is needed
         vkDestroyInstance(instance_, nullptr);
 
