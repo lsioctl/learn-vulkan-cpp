@@ -36,3 +36,11 @@ sudo apt install vulkan-validationlayers-dev
 ## Note on my Linux (no nvidia driver)
 
 `vkcube` runs on embedded intel GPU
+
+## Coding style
+
+At first wanted to use google's style, but to mostly stick with the tutorial (and glfw, vk style):
+
+* snakecase for vars
+* `_` suffix for private var
+* snakecase for functions
