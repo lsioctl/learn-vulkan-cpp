@@ -9,6 +9,7 @@
 #include <cstring>
 #include <map>
 #include <optional>
+#include <set>
 
 void errorCallback(int error, const char* description)
 {
@@ -47,32 +48,11 @@ const std::vector<const char*> VALIDATION_LAYERS = {
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentationFamily;
     bool isComplete() {
-        return graphicsFamily.has_value();
+        return graphicsFamily.has_value() && presentationFamily.has_value();
     }
 };
-
-QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) {
-    QueueFamilyIndices indices;
-
-    uint32_t queue_family_count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nullptr);
-
-    std::vector<VkQueueFamilyProperties> queueFamilies(queue_family_count);
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queueFamilies.data());
-
-    int i = 0;
-    for (const auto& queueFamily : queueFamilies) {
-        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-            indices.graphicsFamily = i;
-            break;
-        }
-
-        i++;
-    }
-
-    return indices;
-}
 
 
 bool checkValidationLayerSupport() {
@@ -179,12 +159,6 @@ bool IsDeviceSuitableAdvancedExample(VkPhysicalDevice device) {
            deviceFeatures.geometryShader;
 }
 
-bool IsDeviceSuitable(VkPhysicalDevice device) {
-    QueueFamilyIndices indices = FindQueueFamilies(device);
-
-    return indices.isComplete();
-}
-
 /***
  * Not used for now
  */
@@ -215,11 +189,11 @@ int RateDeviceSuitability(VkPhysicalDevice device) {
 
 class HelloTriangleApplication {
 public:
-    void Run() {
+    void run() {
         initWindow();
-        InitVulkan();
-        MainLoop();
-        Cleanup();
+        initVulkan();
+        mainLoop();
+        cleanup();
     }
 
 private:
@@ -230,7 +204,7 @@ private:
      * This will be destroyed when vkInstance will be destroyed
      * so no need to do anything in Cleanup() about it
      * */
-    VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
     /**
      * logical device
      */
@@ -242,6 +216,49 @@ private:
      * so we don't need to do anything in cleanup.
      */
     VkQueue graphicsQueue_;
+    VkQueue presentationQueue_;
+    VkSurfaceKHR surface_;
+    void createSurface() {
+        // if the surface object is platform agnostic, its creation is not
+        // let glfw handle this for us
+        if (glfwCreateWindowSurface(instance_, window_, nullptr, &surface_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create window surface!");
+        }
+    }
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
+        QueueFamilyIndices indices;
+
+        uint32_t queue_family_count = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queue_family_count);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queueFamilies.data());
+
+        int i = 0;
+        for (const auto& queueFamily : queueFamilies) {
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                VkBool32 presentationSupport = false;
+                vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface_, &presentationSupport);
+                // Note: likely to be the same queue family
+                // we could optimise later and look for a device
+                // that support drawing and presentation in the same queue for performance
+                if (presentationSupport) {
+                    indices.presentationFamily = i;
+                }
+                indices.graphicsFamily = i;
+                break;
+            }
+
+            i++;
+        }
+
+        return indices;
+    }
+    bool isDeviceSuitable(VkPhysicalDevice device) {
+        QueueFamilyIndices indices = findQueueFamilies(device);
+
+        return indices.isComplete();
+    }
     void initWindow() {
         glfwSetErrorCallback(errorCallback);
         glfwInit();
@@ -349,13 +366,13 @@ private:
 
         // Pick the first suitable device
         for (const auto& device : devices) {
-            if (IsDeviceSuitable(device)) {
-                physical_device_ = device;
+            if (isDeviceSuitable(device)) {
+                physicalDevice_ = device;
                 break;
             }
         }
 
-        if (physical_device_ == VK_NULL_HANDLE) {
+        if (physicalDevice_ == VK_NULL_HANDLE) {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
     }
@@ -384,7 +401,7 @@ private:
 
         // Check if the best candidate is suitable at all
         if (candidates.rbegin()->first > 0) {
-            physical_device_ = candidates.rbegin()->second;
+            physicalDevice_ = candidates.rbegin()->second;
         } else {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
@@ -393,27 +410,37 @@ private:
     void createLogicalDevice() {
         // Specify the queues to be created
         // TODO: dedicated function ?
-        QueueFamilyIndices indices = FindQueueFamilies(physical_device_);
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice_);
 
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        // right now we are only interested in a queue with graphics capabilities
-        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-        // we need only one queue
-        // TODO: understand this
-        /**
-         * The currently available drivers will only allow you to create a small number 
-         * of queues for each queue family and you don't really need more than one. 
-         * That's because you can create all of the command buffers on multiple threads 
-         * and then submit them all at once on the main thread with a single low-overhead call
-         */
-        queueCreateInfo.queueCount = 1;
+        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+        // we are interested in queues with graphics and presentation capabilities
+        std::set<uint32_t> uniqueQueueFamilies = {
+            indices.graphicsFamily.value(),
+            indices.presentationFamily.value()
+        };
+
         // This is required even if there is only a single queue:
         // priority between 0.0 and 1.0
-        float queue_priority = 1.0f;
-        queueCreateInfo.pQueuePriorities = &queue_priority;
+        float queuePriority = 1.0f;
 
-        // TODO: use what we saw previously with  vkGetPhysicalDeviceFeatures
+        for (uint32_t queueFamily : uniqueQueueFamilies) {
+            VkDeviceQueueCreateInfo queueCreateInfo{};
+            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfo.queueFamilyIndex = queueFamily;
+            // we need only one queue
+            // TODO: understand this
+            /**
+             * The currently available drivers will only allow you to create a small number 
+             * of queues for each queue family and you don't really need more than one. 
+             * That's because you can create all of the command buffers on multiple threads 
+             * and then submit them all at once on the main thread with a single low-overhead call
+             */
+            queueCreateInfo.queueCount = 1;
+            queueCreateInfo.pQueuePriorities = &queuePriority;
+            queueCreateInfos.push_back(queueCreateInfo);
+        }
+
+        // TODO: use what we saw previously with vkGetPhysicalDeviceFeatures
         // like geometry shaders
         // for now VK_FALSE
         VkPhysicalDeviceFeatures deviceFeatures{};
@@ -421,8 +448,8 @@ private:
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-        createInfo.pQueueCreateInfos = &queueCreateInfo;
-        createInfo.queueCreateInfoCount = 1;
+        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+        createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
         createInfo.pEnabledFeatures = &deviceFeatures;
 
@@ -444,38 +471,45 @@ private:
             createInfo.enabledLayerCount = 0;
         }
 
-        if (vkCreateDevice(physical_device_, &createInfo, nullptr, &device_) != VK_SUCCESS) {
+        if (vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create logical device!");
         }
 
-        // retrive queue handle
+        // retrieve queues handles
+        // if the queues are the same, it is more than likely than handles will be the same
         vkGetDeviceQueue(device_, indices.graphicsFamily.value(), 0, &graphicsQueue_);
+        vkGetDeviceQueue(device_, indices.presentationFamily.value(), 0, &presentationQueue_);
 
     }
 
-
-
-    void InitVulkan() {
+    void initVulkan() {
         printExtensions();
         createInstance();
         setupDebugMessenger();
+        // TODO: something is wrong here and on functions call nested:
+        // createSurface must be called before pickPhysicalDevice and LogicalDevice
+        // or add a docstring ? Really the kind of hidden state I dislike with OOP
+        createSurface();
         pickPhysicalDevice();
         createLogicalDevice();
     }
 
-    void MainLoop() {
+    void mainLoop() {
         while (!glfwWindowShouldClose(window_)) {
             glfwPollEvents();
         }
     }
 
-    void Cleanup() {
+    void cleanup() {
         if (ENABLE_VALIDATION_LAYERS) {
             // Removing this triggers validation layer error on vkDestroy
             // ... The Vulkan spec states: All child objects created using instance must 
             // have been destroyed prior to destroying instance ...
             DestroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
         }
+
+        // glfw doesn't provide method for this, so us vk call instead
+        vkDestroySurfaceKHR(instance_, surface_, nullptr);
 
         // This is caught by validation layer message if forgotten
         vkDestroyDevice(device_, nullptr);
@@ -493,7 +527,7 @@ int main() {
     HelloTriangleApplication app;
 
     try {
-        app.Run();
+        app.run();
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
