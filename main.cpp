@@ -8,7 +8,7 @@
 #include <vector>
 #include <cstring>
 #include <map>
-
+#include <optional>
 
 void ErrorCallback(int error, const char* description)
 {
@@ -44,6 +44,36 @@ const std::vector<const char*> VALIDATION_LAYERS = {
 #else
     const bool ENABLE_VALIDATION_LAYERS = true;
 #endif
+
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphics_family;
+    bool IsComplete() {
+        return graphics_family.has_value();
+    }
+};
+
+QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device) {
+    QueueFamilyIndices indices;
+
+    uint32_t queue_family_count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nullptr);
+
+    std::vector<VkQueueFamilyProperties> queue_family_list(queue_family_count);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queue_family_list.data());
+
+    int i = 0;
+    for (const auto& queue_family : queue_family_list) {
+        if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            indices.graphics_family = i;
+            break;
+        }
+
+        i++;
+    }
+
+    return indices;
+}
+
 
 bool CheckValidationLayerSupport() {
     uint32_t layerCount;
@@ -149,11 +179,10 @@ bool IsDeviceSuitableAdvancedExample(VkPhysicalDevice device) {
            deviceFeatures.geometryShader;
 }
 
-/***
- * For now, every device supporting Vulkan is OK
- */
 bool IsDeviceSuitable(VkPhysicalDevice device) {
-    return true;
+    QueueFamilyIndices indices = FindQueueFamilies(device);
+
+    return indices.IsComplete();
 }
 
 /***
@@ -358,8 +387,8 @@ private:
 
     void MainLoop() {
         while (!glfwWindowShouldClose(window_)) {
-        glfwPollEvents();
-    }
+            glfwPollEvents();
+        }
     }
 
     void Cleanup() {
