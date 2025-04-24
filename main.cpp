@@ -336,6 +336,11 @@ private:
     VkQueue presentationQueue_;
     VkSurfaceKHR surface_;
     VkSwapchainKHR swapChain_;
+    /** Images will be destroyed when Swap Chain is destroyed */
+    std::vector<VkImage> swapChainImages_;
+    VkFormat swapChainImageFormat_;
+    VkExtent2D swapChainExtent_;
+    std::vector<VkImageView> swapChainImageViews_;
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
         // let glfw handle this for us
@@ -514,6 +519,13 @@ private:
         if (vkCreateSwapchainKHR(device_, &createInfo, nullptr, &swapChain_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create swap chain!");
         }
+
+        vkGetSwapchainImagesKHR(device_, swapChain_, &imageCount, nullptr);
+        swapChainImages_.resize(imageCount);
+        vkGetSwapchainImagesKHR(device_, swapChain_, &imageCount, swapChainImages_.data());
+
+        swapChainImageFormat_ = surfaceFormat.format;
+        swapChainExtent_ = extent;
     }
     void initWindow() {
         glfwSetErrorCallback(errorCallback);
@@ -735,6 +747,40 @@ private:
         // if the queues are the same, it is more than likely than handles will be the same
         vkGetDeviceQueue(device_, indices.graphicsFamily.value(), 0, &graphicsQueue_);
         vkGetDeviceQueue(device_, indices.presentationFamily.value(), 0, &presentationQueue_);
+    }
+
+    void createImageViews() {
+        auto swapChainImageSize = swapChainImages_.size();
+        swapChainImageViews_.resize(swapChainImageSize);
+
+        for (size_t i = 0; i < swapChainImageSize; i++) {
+            VkImageViewCreateInfo createInfo{};
+            createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            createInfo.image = swapChainImages_[i];
+            // could be 1D, 2D, 3D Textures and cube maps
+            createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            createInfo.format = swapChainImageFormat_;
+            // The components field allows you to swizzle the color channels around.
+            // we will stick to the default
+            createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+            // 1 layer as we are not playing with stereographic 3D application
+            // 1 view by eye
+            createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            createInfo.subresourceRange.baseMipLevel = 0;
+            createInfo.subresourceRange.levelCount = 1;
+            createInfo.subresourceRange.baseArrayLayer = 0;
+            // 1 layer as we are not playing with stereographic 3D application
+            // (1 view by eye) by accessing different layers
+            createInfo.subresourceRange.layerCount = 1;
+
+            if (vkCreateImageView(device_, &createInfo, nullptr, &swapChainImageViews_[i]) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create image views!");
+            }
+}
+
 
     }
 
@@ -749,6 +795,7 @@ private:
         pickPhysicalDevice();
         createLogicalDevice();
         createSwapChain();
+        createImageViews();
     }
 
     void mainLoop() {
@@ -758,11 +805,10 @@ private:
     }
 
     void cleanup() {
-        if (ENABLE_VALIDATION_LAYERS) {
-            // Removing this triggers validation layer error on vkDestroy
-            // ... The Vulkan spec states: All child objects created using instance must 
-            // have been destroyed prior to destroying instance ...
-            DestroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
+        // Unlike imgages, imageViews have been created manually
+        // so we need to destroy them
+        for (auto imageView : swapChainImageViews_) {
+            vkDestroyImageView(device_, imageView, nullptr);
         }
 
         // Validation Layer error if we do this before destroying the surface
@@ -773,6 +819,16 @@ private:
 
         // This is caught by validation layer message if forgotten
         vkDestroyDevice(device_, nullptr);
+
+        // TODO: why moving this on top of function scope
+        // or here doesn't change ?
+        // mayberelated to validation layer for create/destroyInstance ?
+        if (ENABLE_VALIDATION_LAYERS) {
+            // Removing this triggers validation layer error on vkDestroy
+            // ... The Vulkan spec states: All child objects created using instance must 
+            // have been destroyed prior to destroying instance ...
+            DestroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
+        }
 
         // As we do not use RAII for now, destroy is needed
         vkDestroyInstance(instance_, nullptr);
