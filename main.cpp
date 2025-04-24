@@ -13,6 +13,34 @@
 #include <cstdint> // Necessary for uint32_t
 #include <limits> // Necessary for std::numeric_limits
 #include <algorithm> // Necessary for std::clamp
+#include <fstream>
+
+static std::vector<char> readFile(const std::string& filename) {
+    // start reading at the end of the file and no text transformations
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("failed to open file!");
+    }
+
+    // as we started at the end of the file
+    // we can use the read position for the size
+    // and allocate a buffer
+    // TODO: more idiomatic way ?
+    size_t fileSize = (size_t) file.tellg();
+    std::vector<char> buffer(fileSize);
+
+    // TODO: is it really safe ?
+    // seek back to the beginning of the file
+    // and read all at once
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
+
+    file.close();
+
+    return buffer;
+}
+
 
 void errorCallback(int error, const char* description)
 {
@@ -48,6 +76,9 @@ const std::vector<const char*> VALIDATION_LAYERS = {
 const std::vector<const char*> DEVICE_EXTENSIONS = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
+
+const auto VERT_FILE = "./shaders/spirv/shader1.vert.spirv";
+const auto FRAG_FILE = "./shaders/spirv/shader1.frag.spirv";
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -782,7 +813,45 @@ private:
         }
     }
 
+    VkShaderModule createShaderModule(const std::vector<char>& code) {
+        VkShaderModuleCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = code.size();
+        // TODO: why reinterpret_cast and not static_cast ?
+        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+        VkShaderModule shaderModule;
+        if (vkCreateShaderModule(device_, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create shader module!");
+        }
+
+        return shaderModule;
+    }
+
     void createGraphicsPipeline() {
+        auto vertShaderCode = readFile(VERT_FILE);
+        auto fragShaderCode = readFile(FRAG_FILE);
+
+        VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+        VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertShaderStageInfo.module = vertShaderModule;
+        vertShaderStageInfo.pName = "main";
+        // pSpecializationInfo could be interesting for constants and optimizations
+
+        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragShaderStageInfo.module = fragShaderModule;
+        fragShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+        vkDestroyShaderModule(device_, fragShaderModule, nullptr);
+        vkDestroyShaderModule(device_, vertShaderModule, nullptr);
     }
 
     void initVulkan() {
