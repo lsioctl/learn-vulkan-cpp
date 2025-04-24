@@ -771,8 +771,6 @@ private:
         // glfw doesn't provide method for this, so us vk call instead
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
 
-
-        
         // This is caught by validation layer message if forgotten
         vkDestroyDevice(device_, nullptr);
 
