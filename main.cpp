@@ -10,6 +10,9 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <cstdint> // Necessary for uint32_t
+#include <limits> // Necessary for std::numeric_limits
+#include <algorithm> // Necessary for std::clamp
 
 void errorCallback(int error, const char* description)
 {
@@ -40,6 +43,12 @@ const std::vector<const char*> VALIDATION_LAYERS = {
     "VK_LAYER_KHRONOS_validation"
 };
 
+// we use the macro to avoid mispelling
+// "VK_KHR_swapchain"
+const std::vector<const char*> DEVICE_EXTENSIONS = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
 #else
@@ -52,6 +61,18 @@ struct QueueFamilyIndices {
     bool isComplete() {
         return graphicsFamily.has_value() && presentationFamily.has_value();
     }
+};
+
+struct SwapChainSupportDetails {
+    /** 
+    Basic surface capabilities (min/max number of images in 
+    swap chain, min/max width and height of images)
+    */
+    VkSurfaceCapabilitiesKHR capabilities;
+    /** Surface formats (pixel format, color space) */
+    std::vector<VkSurfaceFormatKHR> formats;
+    /** Available presentation modes */
+    std::vector<VkPresentModeKHR> presentationModes;
 };
 
 
@@ -186,6 +207,102 @@ int RateDeviceSuitability(VkPhysicalDevice device) {
     return score;
 }
 
+/**
+ * enumerate the extensions and check if all of the required extensions are amongst them
+ */
+bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
+    uint32_t extensionCount;
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+
+    std::set<std::string> requiredExtensions(DEVICE_EXTENSIONS.begin(), DEVICE_EXTENSIONS.end());
+
+    for (const auto& extension : availableExtensions) {
+        requiredExtensions.erase(extension.extensionName);
+    }
+
+    return requiredExtensions.empty();
+}
+
+/**
+ * For the color space we'll use SRGB if it is available, 
+ * because it results in more accurate perceived colors. 
+ * It is also pretty much the standard color space for images, like the textures we'll use later on. 
+ * Because of that we should also use an SRGB color format, of which one of the most common 
+ * ones is VK_FORMAT_B8G8R8A8_SRGB.
+ * 
+ * If it fails it will return the first item of availableFormats
+ */
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+    for (const auto& availableFormat : availableFormats) {
+        /**
+         * The format member specifies the color channels and types. 
+         * For example, VK_FORMAT_B8G8R8A8_SRGB means that we store the B, G, R and alpha channels 
+         * in that order with an 8 bit unsigned integer for a total of 32 bits per pixel.
+         */
+        if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB 
+        /**
+         * The colorSpace member indicates if the SRGB color space is supported or not using the 
+         * VK_COLOR_SPACE_SRGB_NONLINEAR_KHR flag. 
+         * Note that this flag used to be called VK_COLORSPACE_SRGB_NONLINEAR_KHR 
+         * in old versions of the specification.
+         */
+            && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+        ) {
+            return availableFormat;
+        }
+    }
+
+    /**
+     * if it fails we could start ranking the available formats based on how "good" they are, 
+     * but in most cases it's okay to just settle with the first format that is specified.
+     */
+    return availableFormats[0];
+}
+/**
+ * The presentation mode is arguably the most important setting for the swap chain, 
+ * because it represents the actual conditions for showing images to the screen. 
+ * There are four possible modes available in Vulkan:
+ *   VK_PRESENT_MODE_IMMEDIATE_KHR: Images submitted by your application are 
+ * transferred to the screen right away, which may result in tearing.
+ *   VK_PRESENT_MODE_FIFO_KHR: The swap chain is a queue where the display 
+ * takes an image from the front of the queue when the display is refreshed 
+ * and the program inserts rendered images at the back of the queue. 
+ * If the queue is full then the program has to wait. 
+ * This is most similar to vertical sync as found in modern games. 
+ * The moment that the display is refreshed is known as "vertical blank".
+ *   VK_PRESENT_MODE_FIFO_RELAXED_KHR: This mode only differs from the previous
+ *  one if the application is late and the queue was empty at the last vertical blank. 
+ * Instead of waiting for the next vertical blank, the image is transferred right 
+ * away when it finally arrives. This may result in visible tearing.
+ *   VK_PRESENT_MODE_MAILBOX_KHR: This is another variation of the second mode. 
+ * Instead of blocking the application when the queue is full, the images that 
+ * are already queued are simply replaced with the newer ones. 
+ * This mode can be used to render frames as fast as possible while still avoiding tearing,
+ * resulting in fewer latency issues than standard vertical sync. 
+ * This is commonly known as "triple buffering", although the existence of three buffers 
+ * alone does not necessarily mean that the framerate is unlocked.
+
+ * Only the VK_PRESENT_MODE_FIFO_KHR mode is guaranteed to be available
+ * so we return it if we don't find better
+ */
+VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentationModes) {
+    for (const auto& availablePresentMode : availablePresentationModes) {
+        // choice of the author of the tutorial
+        // he says on mobile device, where consumption is prime
+        // it may be better to choose VK_PRESENT_MODE_FIFO_KHR
+        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            return availablePresentMode;
+        }
+    }
+
+    return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+
+
 
 class HelloTriangleApplication {
 public:
@@ -218,6 +335,7 @@ private:
     VkQueue graphicsQueue_;
     VkQueue presentationQueue_;
     VkSurfaceKHR surface_;
+    VkSwapchainKHR swapChain_;
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
         // let glfw handle this for us
@@ -257,7 +375,145 @@ private:
     bool isDeviceSuitable(VkPhysicalDevice device) {
         QueueFamilyIndices indices = findQueueFamilies(device);
 
-        return indices.isComplete();
+        bool extensionsSupported = checkDeviceExtensionSupport(device);
+
+        bool swapChainAdequate = false;
+
+        if (extensionsSupported) {
+            SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+            swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentationModes.empty();
+        }
+
+        return indices.isComplete() && extensionsSupported && swapChainAdequate;
+    }
+    /**
+     * TODO: make surface_ dependency explicit
+     */
+    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
+        SwapChainSupportDetails details;
+
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface_, &details.capabilities);
+
+        uint32_t formatCount;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &formatCount, nullptr);
+
+        if (formatCount != 0) {
+            details.formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &formatCount, details.formats.data());
+        }
+
+        uint32_t presentModeCount;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface_, &presentModeCount, nullptr);
+
+        if (presentModeCount != 0) {
+            details.presentationModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface_, &presentModeCount, details.presentationModes.data());
+        }
+
+        return details;
+    }
+    /**
+     * The swap extent is the resolution of the swap chain images and it's almost 
+     * always exactly equal to the resolution of the window that we're drawing 
+     * to in pixels (more on that in a moment). 
+     * The range of the possible resolutions is defined in the VkSurfaceCapabilitiesKHR 
+     * structure. Vulkan tells us to match the resolution of the window by setting 
+     * the width and height in the currentExtent member.
+     * However, some window managers do allow us to differ here and this is indicated by 
+     * setting the width and height in currentExtent to a special value: the maximum value of uint32_t. 
+     * In that case we'll pick the resolution that best matches the window within the minImageExtent
+     * and maxImageExtent bounds. 
+     * But we must specify the resolution in the correct unit.
+     * 
+     * GLFW uses two units when measuring sizes: pixels and screen coordinates. 
+     * For example, the resolution {WIDTH, HEIGHT} that we specified earlier when creating the window 
+     * is measured in screen coordinates. But Vulkan works with pixels, 
+     * so the swap chain extent must be specified in pixels as well. 
+     * Unfortunately, if you are using a high DPI display (like Apple's Retina display), 
+     * screen coordinates don't correspond to pixels. Instead, due to the higher pixel density, 
+     * the resolution of the window in pixel will be larger than the resolution in screen coordinates. 
+     * So if Vulkan doesn't fix the swap extent for us, we can't just use the original {WIDTH, HEIGHT}. 
+     * Instead, we must use glfwGetFramebufferSize to query the resolution of the window in pixel before 
+     * matching it against the minimum and maximum image extent.
+     */
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
+        if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+            return capabilities.currentExtent;
+        } else {
+            int width, height;
+            glfwGetFramebufferSize(window_, &width, &height);
+
+            VkExtent2D actualExtent = {
+                static_cast<uint32_t>(width),
+                static_cast<uint32_t>(height)
+            };
+
+            actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+            actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+
+            return actualExtent;
+        }
+    }
+    void createSwapChain() {
+        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice_);
+
+        VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+        VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentationModes);
+        VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+
+        // recommended: min image + 1
+        uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+        // if maxImageCount == 0 => unlimited
+        if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
+            imageCount = swapChainSupport.capabilities.maxImageCount;
+        }
+
+        VkSwapchainCreateInfoKHR createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+        createInfo.surface = surface_;
+        createInfo.minImageCount = imageCount;
+        createInfo.imageFormat = surfaceFormat.format;
+        createInfo.imageColorSpace = surfaceFormat.colorSpace;
+        createInfo.imageExtent = extent;
+        // always 1 except stereoscopic 3D application
+        createInfo.imageArrayLayers = 1;
+        // we will render directly to the images in the swapchain
+        /**
+         * It is also possible that you'll render images to a separate image first to perform 
+         * operations like post-processing. In that case you may use a value like VK_IMAGE_USAGE_TRANSFER_DST_BIT 
+         * instead and use a memory operation to transfer the rendered image to a swap chain image.
+         */
+        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice_);
+        uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentationFamily.value()};
+
+        // handle swap chain images that may be used across multiple queue families.
+        if (indices.graphicsFamily != indices.presentationFamily) {
+            // multiple queue families, we use concurrent instead of exclusive to avoid ownership issues
+            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            createInfo.queueFamilyIndexCount = 2;
+            createInfo.pQueueFamilyIndices = queueFamilyIndices;
+        } else {
+            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            createInfo.queueFamilyIndexCount = 0; // Optional
+            createInfo.pQueueFamilyIndices = nullptr; // Optional
+        }
+        // we do not want any transformation,(90 degres rotation, horizontal flip, ...)
+        // even if available in supportedTransforms in capabilities
+        createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+        // ignore the alpha channel
+        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        createInfo.presentMode = presentMode;
+        // we don't care about pixel obscured, e.g. by a window in front of them
+        createInfo.clipped = VK_TRUE;
+        // a new swapchain may be created if, for example, we resize the window
+        // for now we will use only one swap chain
+        createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+        if (vkCreateSwapchainKHR(device_, &createInfo, nullptr, &swapChain_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create swap chain!");
+        }
     }
     void initWindow() {
         glfwSetErrorCallback(errorCallback);
@@ -453,12 +709,12 @@ private:
 
         createInfo.pEnabledFeatures = &deviceFeatures;
 
-        // We don't need device specific extension right now
-        // Note: it looks like physical device extensions's logic
-        // but here we are on logical device
+        // it may look like physical device
+        // but we are working with logical device
         // so for example some logical devices will be compute only
         // or graphic only with VK_KHR_swapchain
-        createInfo.enabledExtensionCount = 0;
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(DEVICE_EXTENSIONS.size());
+        createInfo.ppEnabledExtensionNames = DEVICE_EXTENSIONS.data();
 
         // Below code if for older versions
         // as newer implementations (since 1.3 ?)
@@ -492,6 +748,7 @@ private:
         createSurface();
         pickPhysicalDevice();
         createLogicalDevice();
+        createSwapChain();
     }
 
     void mainLoop() {
@@ -508,9 +765,14 @@ private:
             DestroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
         }
 
+        // Validation Layer error if we do this before destroying the surface
+        vkDestroySwapchainKHR(device_, swapChain_, nullptr);
+
         // glfw doesn't provide method for this, so us vk call instead
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
 
+
+        
         // This is caught by validation layer message if forgotten
         vkDestroyDevice(device_, nullptr);
 
