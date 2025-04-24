@@ -779,9 +779,10 @@ private:
             if (vkCreateImageView(device_, &createInfo, nullptr, &swapChainImageViews_[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create image views!");
             }
-}
+        }
+    }
 
-
+    void createGraphicsPipeline() {
     }
 
     void initVulkan() {
@@ -796,6 +797,7 @@ private:
         createLogicalDevice();
         createSwapChain();
         createImageViews();
+        createGraphicsPipeline();
     }
 
     void mainLoop() {
