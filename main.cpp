@@ -372,6 +372,7 @@ private:
     VkFormat swapChainImageFormat_;
     VkExtent2D swapChainExtent_;
     std::vector<VkImageView> swapChainImageViews_;
+    VkPipelineLayout pipelineLayout_;
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
         // let glfw handle this for us
@@ -850,6 +851,184 @@ private:
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
+        // for now Vertex data hardcoded in the shader
+        // so tell there is no vertex data for now
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexInputInfo.vertexBindingDescriptionCount = 0;
+        vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
+        vertexInputInfo.vertexAttributeDescriptionCount = 0;
+        vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+
+        /**
+         * 
+            VK_PRIMITIVE_TOPOLOGY_POINT_LIST: points from vertices
+            VK_PRIMITIVE_TOPOLOGY_LINE_LIST: line from every 2 vertices without reuse
+            VK_PRIMITIVE_TOPOLOGY_LINE_STRIP: the end vertex of every line is used as start vertex 
+            for the next line
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST: triangle from every 3 vertices without reuse
+            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP: the second and third vertex of every triangle are 
+            used as first two vertices of the next triangle
+
+            with element buffer we could specify the indices to use yourself
+         */
+        // We will draw triangles throughout the tutorial
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+        // describes the region of the framebuffer that the output will be rendered to
+        // This is almost always (0, 0) to (width, height)
+        // size of the swap chain and its images may differ from the WIDTH and HEIGHT 
+        // of the window. The swap chain images will be used as framebuffers later on,
+        //  so we should stick to their size.
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float) swapChainExtent_.width;
+        viewport.height = (float) swapChainExtent_.height;
+        // specify the range of depth values to use for the framebuffer. 
+        // values must be within the [0.0f, 1.0f] range, 
+        // but minDepth may be higher than maxDepth
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+
+        // to draw to the entire framebuffer, we would specify a scissor rectangle that covers
+        // it entirely:
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = swapChainExtent_;
+
+
+        // Very little amount of state can be changed on the pipeline which is mostly immutable
+        // viewport and scissor can be dynamic without performance penalty
+        // viewport and scissor rectangle will have to be set up at drawing time
+        std::vector<VkDynamicState> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+
+        // if we want viewport ans scissor also immutable this could be done instead
+        // some GPU could still have multiple so the struct reference an array of them
+        // using multiple requires enabling a special GPU feature
+        /**
+         * VkPipelineViewportStateCreateInfo viewportState{};
+            viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+            viewportState.viewportCount = 1;
+            viewportState.pViewports = &viewport;
+            viewportState.scissorCount = 1;
+            viewportState.pScissors = &scissor;
+         */
+
+        
+        /**
+         * The rasterizer takes the geometry that is shaped by the vertices from the vertex
+         * shader and turns it into fragments to be colored by the fragment shader. 
+         * It also performs depth testing, face culling and the scissor test, 
+         * and it can be configured to output fragments that fill entire polygons 
+         * or just the edges (wireframe rendering).
+         */
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable = VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        // thicker than 1 requires wideLines GPU feature
+        rasterizer.lineWidth = 1.0f;
+        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.depthBiasEnable = VK_FALSE;
+        rasterizer.depthBiasConstantFactor = 0.0f; // Optional
+        rasterizer.depthBiasClamp = 0.0f; // Optional
+        rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
+
+
+        /**
+         * Multisampling is one of the ways to perform anti-aliasing. 
+         * It works by combining the fragment shader results of multiple polygons
+         * that rasterize to the same pixel. 
+         * This mainly occurs along edges, 
+         * which is also where the most noticeable aliasing artifacts occur. 
+         * Because it doesn't need to run the fragment shader multiple times 
+         * if only one polygon maps to a pixel, it is significantly less expensive
+         * than simply rendering to a higher resolution and then downscaling. 
+         * Enabling it requires enabling a GPU feature.
+         */
+        // For now ms is disabled
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.sampleShadingEnable = VK_FALSE;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        multisampling.minSampleShading = 1.0f; // Optional
+        multisampling.pSampleMask = nullptr; // Optional
+        multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
+        multisampling.alphaToOneEnable = VK_FALSE; // Optional
+
+        // Depth/Stencil buffer
+        // We do have it right now so pass nullptr instead of a struct
+        // for VkPipelineDepthStencilStateCreateInfo
+
+
+        /**
+         * After a fragment shader has returned a color, 
+         * it needs to be combined with the color that is already in the framebuffer.
+         * This transformation is known as color blending and there are two ways to do it:
+         *  Mix the old and new value to produce a final color
+         * Combine the old and new value using a bitwise operation
+         * 
+         */
+        // configuration per attached framebuffer
+        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT 
+            | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        // following parameters for alpha blending
+        colorBlendAttachment.blendEnable = VK_TRUE;
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+        // global configuration, constants used by colorBlendAttachment
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.logicOpEnable = VK_FALSE;
+        colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional
+        // we have only one attachment
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlendAttachment;
+        colorBlending.blendConstants[0] = 0.0f; // Optional
+        colorBlending.blendConstants[1] = 0.0f; // Optional
+        colorBlending.blendConstants[2] = 0.0f; // Optional
+        colorBlending.blendConstants[3] = 0.0f; // Optional
+
+        // For uniform values
+        // for now we don't have any but we still need
+        // to create an empty pielineLayout
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 0; // Optional
+        pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+        pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
+        pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+
+        if (vkCreatePipelineLayout(device_, &pipelineLayoutInfo, nullptr, &pipelineLayout_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create pipeline layout!");
+        }
+
         vkDestroyShaderModule(device_, fragShaderModule, nullptr);
         vkDestroyShaderModule(device_, vertShaderModule, nullptr);
     }
@@ -887,6 +1066,8 @@ private:
 
         // glfw doesn't provide method for this, so us vk call instead
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
+
+        vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
 
         // This is caught by validation layer message if forgotten
         vkDestroyDevice(device_, nullptr);
