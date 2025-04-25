@@ -378,6 +378,12 @@ private:
     std::vector<VkFramebuffer> swapChainFramebuffers_;
     VkCommandPool commandPool_;
     VkCommandBuffer commandBuffer_;
+    /** Semaphore: blocking wait in GPU not in CPU */
+    VkSemaphore imageAvailableSemaphore_;
+    /** Semaphore: blocking wait in GPU not in CPU */
+    VkSemaphore renderFinishedSemaphore_;
+    /** Fence blocking wait on CPU that GPU has finished */
+    VkFence inFlightFence_;
 
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
@@ -1267,6 +1273,109 @@ private:
         }
     }
 
+    /**
+     * We'll need one semaphore to signal that an image has been acquired from the swapchain
+     * and is ready for rendering, another one to signal that rendering has finished 
+     * and presentation can happen, and a fence to make sure only one frame is rendering at a time.
+     * (1 record on the command buffer for every frame, and we don't want overwriting it while the
+     * GPU is using it)
+     */
+    void createSyncObjects() {
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        // chicken and egg solvgin by the API:
+        // the first call to vkWaitForFences() returns immediately
+        // since the fence is already signaled.
+        // without it it would block forever
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        if (vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &imageAvailableSemaphore_) != VK_SUCCESS ||
+        vkCreateSemaphore(device_, &semaphoreInfo, nullptr, &renderFinishedSemaphore_) != VK_SUCCESS ||
+        vkCreateFence(device_, &fenceInfo, nullptr, &inFlightFence_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create semaphores!");
+        }
+    }
+
+    void drawFrame() {
+        vkWaitForFences(device_, 1, &inFlightFence_, VK_TRUE, UINT64_MAX);
+
+        // vkQueue needs VK_NULL_HANDLE or unsignaled fence
+        vkResetFences(device_, 1, &inFlightFence_);
+
+        uint32_t imageIndex;
+        // extension so vk...KHR naming
+        vkAcquireNextImageKHR(
+            device_,
+            swapChain_,
+            // No timeout 
+            UINT64_MAX,
+            imageAvailableSemaphore_,
+            VK_NULL_HANDLE,
+            // vkImage in our swapchain array
+            &imageIndex
+        );
+
+        // record the command buffer
+        // make sure the command buffer can be recorded
+        vkResetCommandBuffer(commandBuffer_, 0);
+        recordCommandBuffer(commandBuffer_, imageIndex);
+
+        // submitting the command buffer
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        VkSemaphore waitSemaphores[] = {imageAvailableSemaphore_};
+        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer_;
+        VkSemaphore signalSemaphores[] = {renderFinishedSemaphore_};
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+
+        if (vkQueueSubmit(graphicsQueue_, 1, &submitInfo, inFlightFence_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to submit draw command buffer!");
+        }
+
+        // Subpass dependency
+        // Suppasses are for transition
+        // we have only one subpass but still it needs to be handled
+        // TODO: read more about it, I have enough for now and want to draw
+        // that first triangle :D
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = 0;
+        /** the following refer to the dependecies in renderPass
+         * renderPassInfo.dependencyCount = 1;
+        renderPassInfo.pDependencies = &dependency;
+         */
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        // Presentation
+        // The last step of drawing a frame is submitting the result back 
+        // to the swap chain to have it eventually show up on the screen
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = signalSemaphores;
+        VkSwapchainKHR swapChains[] = {swapChain_};
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = swapChains;
+        presentInfo.pImageIndices = &imageIndex;
+        presentInfo.pResults = nullptr; // Optional
+
+        // submit a request to present an image on the swapchain
+        vkQueuePresentKHR(presentationQueue_, &presentInfo);
+    }
+
     void initVulkan() {
         printExtensions();
         createInstance();
@@ -1284,12 +1393,16 @@ private:
         createFramebuffers();
         createCommandPool();
         createCommandBuffer();
+        createSyncObjects();
     }
 
     void mainLoop() {
         while (!glfwWindowShouldClose(window_)) {
             glfwPollEvents();
+            drawFrame();
         }
+
+        vkDeviceWaitIdle(device_);
     }
 
     void cleanup() {
@@ -1316,6 +1429,10 @@ private:
         vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
 
         vkDestroyCommandPool(device_, commandPool_, nullptr);
+
+        vkDestroySemaphore(device_, imageAvailableSemaphore_, nullptr);
+        vkDestroySemaphore(device_, renderFinishedSemaphore_, nullptr);
+        vkDestroyFence(device_, inFlightFence_, nullptr);
 
         // This is caught by validation layer message if forgotten
         vkDestroyDevice(device_, nullptr);
