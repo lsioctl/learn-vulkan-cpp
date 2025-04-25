@@ -835,7 +835,7 @@ private:
         return shaderModule;
     }
 
-    // the attachments referenced by the pipeline stages and their usage
+    /** the attachments referenced by the pipeline stages and their usage */
     void createRenderPass() {
         /**
          * In our case we'll have just a single color buffer attachment 
@@ -1197,7 +1197,7 @@ private:
         }
     }
 
-    // writes the commands we want to execute into a command buffer.
+    /** writes the commands we want to execute into a command buffer. */
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
