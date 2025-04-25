@@ -376,6 +376,8 @@ private:
     VkPipelineLayout pipelineLayout_;
     VkPipeline graphicsPipeline_;
     std::vector<VkFramebuffer> swapChainFramebuffers_;
+    VkCommandPool commandPool_;
+    VkCommandBuffer commandBuffer_;
 
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
@@ -1161,6 +1163,109 @@ private:
         }
     }
 
+    void createCommandPool() {
+        QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice_);
+
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        // We will be recording a command buffer every frame
+        // so we want to be able to reset and rerecord over it
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        // Command buffers are executed by submitting them on one of the device queues
+        // record command for drawing so we choose the graphicsFamily queue
+        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+        if (vkCreateCommandPool(device_, &poolInfo, nullptr, &commandPool_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create command pool!");
+        }
+    }
+
+    void createCommandBuffer() {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = commandPool_;
+        // VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue 
+        // for execution, but cannot be called from other command buffers.
+        // VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly
+        // but can be called from primary command buffers.
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        // only one command buffer allocated
+        allocInfo.commandBufferCount = 1;
+
+        if (vkAllocateCommandBuffers(device_, &allocInfo, &commandBuffer_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate command buffers!");
+        }
+    }
+
+    // writes the commands we want to execute into a command buffer.
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        // none of the flags applicable for us right now
+        beginInfo.flags = 0; // Optional
+        // only relevant for secondary command buffer
+        beginInfo.pInheritanceInfo = nullptr; // Optional
+
+        // If the command buffer was already recorded once, then a call to vkBeginCommandBuffer 
+        // will implicitly reset it. It's not possible to append commands to a buffer at a later time.
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("failed to begin recording command buffer!");
+        }
+
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass_;
+        // We created a framebuffer for each swap chain image where it 
+        // is specified as a color attachment. 
+        // Thus we need to bind the framebuffer for the swapchain image we want to draw to.
+        // pick the right framebuffer for the current swapchain image
+        renderPassInfo.framebuffer = swapChainFramebuffers_[imageIndex];
+        // define the size of the render area
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = swapChainExtent_;
+        // for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
+        // black with 100% opacity
+        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.pClearValues = &clearColor;
+
+        // no secondary command buffer so no VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline_);
+
+        // as we defined viewport and scissor state to be dynamic
+        // we need to set them in the command buffer before the draw command
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = static_cast<float>(swapChainExtent_.width);
+        viewport.height = static_cast<float>(swapChainExtent_.height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = swapChainExtent_;
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+        /**
+         * 
+            vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
+            instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+            firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
+            firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+         */
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+        vkCmdEndRenderPass(commandBuffer);
+
+        // we've finish recording the command buffer
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to record command buffer!");
+        }
+    }
 
     void initVulkan() {
         printExtensions();
@@ -1177,6 +1282,8 @@ private:
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffers();
+        createCommandPool();
+        createCommandBuffer();
     }
 
     void mainLoop() {
@@ -1207,6 +1314,8 @@ private:
         vkDestroyPipeline(device_, graphicsPipeline_, nullptr);
 
         vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
+
+        vkDestroyCommandPool(device_, commandPool_, nullptr);
 
         // This is caught by validation layer message if forgotten
         vkDestroyDevice(device_, nullptr);
