@@ -372,7 +372,9 @@ private:
     VkFormat swapChainImageFormat_;
     VkExtent2D swapChainExtent_;
     std::vector<VkImageView> swapChainImageViews_;
+    VkRenderPass renderPass_;
     VkPipelineLayout pipelineLayout_;
+
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
         // let glfw handle this for us
@@ -829,6 +831,62 @@ private:
         return shaderModule;
     }
 
+    // the attachments referenced by the pipeline stages and their usage
+    void createRenderPass() {
+        /**
+         * In our case we'll have just a single color buffer attachment 
+         * represented by one of the images from the swap chain.
+         */
+        VkAttachmentDescription colorAttachment{};
+        colorAttachment.format = swapChainImageFormat_;
+        // no multisampling yet
+        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        // what to do with the data in the attachment before rendering ...
+        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        // ... and after rendering.
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        // Our application won't do anything with the stencil buffer, 
+        // so the results of loading and storing are irrelevant.
+        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        // layout the image will have before the render pass begins
+        // not important as we gonna clear it anyway
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        // layout to automatically transition to when the render pass finishes
+        /**
+         * Some of the most common layouts are:
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Images used as color attachment
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: Images to be presented in the swap chain
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Images to be used as destination 
+            for a memory copy operation
+         */
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+        // only one subpass for now
+        VkAttachmentReference colorAttachmentRef{};
+        colorAttachmentRef.attachment = 0;
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass{};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1;
+        // The index of the attachment in this array is directly referenced from the 
+        // fragment shader with the layout(location = 0) out vec4 outColor directive
+        subpass.pColorAttachments = &colorAttachmentRef;
+
+        VkRenderPassCreateInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount = 1;
+        renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpass;
+
+        if (vkCreateRenderPass(device_, &renderPassInfo, nullptr, &renderPass_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create render pass!");
+        }
+    }
+
+
     void createGraphicsPipeline() {
         auto vertShaderCode = readFile(VERT_FILE);
         auto fragShaderCode = readFile(FRAG_FILE);
@@ -1045,6 +1103,7 @@ private:
         createLogicalDevice();
         createSwapChain();
         createImageViews();
+        createRenderPass();
         createGraphicsPipeline();
     }
 
@@ -1066,6 +1125,8 @@ private:
 
         // glfw doesn't provide method for this, so us vk call instead
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
+
+        vkDestroyRenderPass(device_, renderPass_, nullptr);
 
         vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
 
