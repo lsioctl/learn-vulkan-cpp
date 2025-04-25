@@ -374,6 +374,7 @@ private:
     std::vector<VkImageView> swapChainImageViews_;
     VkRenderPass renderPass_;
     VkPipelineLayout pipelineLayout_;
+    VkPipeline graphicsPipeline_;
 
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
@@ -1087,6 +1088,31 @@ private:
             throw std::runtime_error("failed to create pipeline layout!");
         }
 
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = shaderStages;
+        pipelineInfo.pVertexInputState = &vertexInputInfo;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pDepthStencilState = nullptr; // Optional
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.layout = pipelineLayout_;
+        pipelineInfo.renderPass = renderPass_;
+        // index
+        pipelineInfo.subpass = 0;
+        // Vulkan allow create pipeline by deriving from existing ones
+        // right now single pipeline so we discard the two following lines 
+        pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+        pipelineInfo.basePipelineIndex = -1; // Optional
+
+        if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create graphics pipeline!");
+        }
+
         vkDestroyShaderModule(device_, fragShaderModule, nullptr);
         vkDestroyShaderModule(device_, vertShaderModule, nullptr);
     }
@@ -1127,6 +1153,8 @@ private:
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
 
         vkDestroyRenderPass(device_, renderPass_, nullptr);
+
+        vkDestroyPipeline(device_, graphicsPipeline_, nullptr);
 
         vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
 
