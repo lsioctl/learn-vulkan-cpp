@@ -9,7 +9,15 @@
                 "-g",
                 "${file}",
                 "-o",
-                "${fileDirname}/${fileBasenameNoExtension}"
+                "${fileDirname}/build/${fileBasenameNoExtension}",
+                "-lglfw",
+                "-lvulkan",
+                "-ldl",
+                "-lpthread",
+                "-lX11",
+                "-lXxf86vm",
+                "-lXrandr",
+                "-lXi",
             ],
             "options": {
                 "cwd": "${fileDirname}"
