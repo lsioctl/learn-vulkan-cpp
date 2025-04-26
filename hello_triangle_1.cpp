@@ -1406,7 +1406,7 @@ private:
     }
 
     void cleanup() {
-        // Unlike imgages, imageViews have been created manually
+        // Unlike images, imageViews have been created manually
         // so we need to destroy them
         for (auto imageView : swapChainImageViews_) {
             vkDestroyImageView(device_, imageView, nullptr);
