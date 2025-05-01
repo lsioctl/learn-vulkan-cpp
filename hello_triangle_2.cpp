@@ -173,7 +173,7 @@ private:
             createInfo.pNext = nullptr;
         }
 
-        auto extensions = device::GetRequiredExtensions(ENABLE_VALIDATION_LAYERS);
+        auto extensions = device::getRequiredExtensions(ENABLE_VALIDATION_LAYERS);
         createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
         createInfo.ppEnabledExtensionNames = extensions.data();
 
@@ -578,7 +578,7 @@ private:
             // Removing this triggers validation layer error on vkDestroy
             // ... The Vulkan spec states: All child objects created using instance must 
             // have been destroyed prior to destroying instance ...
-            device::DestroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
+            device::destroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
         }
 
         // As we do not use RAII for now, destroy is needed

@@ -22,7 +22,7 @@ void printExtensions();
 /**
  * Debug callback function for validation layers
  */
-VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -38,7 +38,7 @@ void setupDebugMessenger(VkInstance instance, bool enable_validation_layers, VkD
  * automatically loaded
  * we have to look up the address ourself with vkGetInstanceProcAddr
  */
-VkResult CreateDebugUtilsMessengerEXT(
+VkResult createDebugUtilsMessengerEXT(
     VkInstance instance, 
     const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
     const VkAllocationCallbacks* pAllocator, 
@@ -51,7 +51,7 @@ VkResult CreateDebugUtilsMessengerEXT(
  * automatically loaded
  * we have to look up the address ourself with vkGetInstanceProcAddr
  */
-void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
+void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
 
 bool isPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const std::vector<const char*>& device_extensions);
 bool checkValidationLayerSupport(const std::vector<const char*>& validation_layers);
@@ -59,7 +59,7 @@ bool checkValidationLayerSupport(const std::vector<const char*>& validation_laye
  * return the required list of extension based on wheter validation
  * layer is set or not
  */
-std::vector<const char*> GetRequiredExtensions(bool enable_validation_layers);
+std::vector<const char*> getRequiredExtensions(bool enable_validation_layers);
 /**
  * enumerate the extensions and check if all of the required extensions are amongst them
  * TODO: "private"
