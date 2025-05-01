@@ -29,6 +29,8 @@ struct SwapChainSupportDetails {
     std::vector<VkPresentModeKHR> presentationModes;
 };
 
+void printExtensions();
+
 /**
  * Debug callback function for validation layers
  */
@@ -63,7 +65,7 @@ VkResult CreateDebugUtilsMessengerEXT(
  */
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
 
-bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface, const std::vector<const char*>& device_extensions);
+bool isPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const std::vector<const char*>& device_extensions);
 bool checkValidationLayerSupport(const std::vector<const char*>& validation_layers);
 /***
  * return the required list of extension based on wheter validation
@@ -75,8 +77,19 @@ std::vector<const char*> GetRequiredExtensions(bool enable_validation_layers);
  * TODO: "private"
  */
 bool checkDeviceExtensionSupport(VkPhysicalDevice device, const std::vector<const char*>& device_extensions);
-QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
 SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
+
+void createLogicalDevice(
+    VkPhysicalDevice physicalDevice,
+    VkSurfaceKHR surface,
+    const std::vector<const char*>& device_extensions,
+    bool enable_validation_layers,
+    const std::vector<const char*>& validation_layers,
+    VkDevice* pLogicalDevice,
+    VkQueue* pGraphicsQueue,
+    VkQueue* pPresentQueue
+);
 
 
 

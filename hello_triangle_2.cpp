@@ -50,21 +50,7 @@ void errorCallback(int error, const char* description)
     fprintf(stderr, "Error: %s\n", description);
 }
 
-void printExtensions() {
-    // retrieve a list of supported extensions
-    // could be compared to glfwGetRequiredInstanceExtensions
 
-    uint32_t extensionCount = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-    std::vector<VkExtensionProperties> extensions(extensionCount);
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-    std::cout << "Available extensions:\n";
-
-    for (const auto& extension : extensions) {
-        std::cout << '\t' << extension.extensionName << '\n';
-    }
-
-}
 
 
 const uint32_t WIDTH = 800;
@@ -424,7 +410,7 @@ private:
 
         // Pick the first suitable device
         for (const auto& device : devices) {
-            if (device::isDeviceSuitable(device, surface_, DEVICE_EXTENSIONS)) {
+            if (device::isPhysicalDeviceSuitable(device, surface_, DEVICE_EXTENSIONS)) {
                 physicalDevice_ = device;
                 break;
             }
@@ -435,80 +421,18 @@ private:
         }
     }
 
-    
 
     void createLogicalDevice() {
-        // Specify the queues to be created
-        // TODO: dedicated function ?
-        device::QueueFamilyIndices indices = device::findQueueFamilies(physicalDevice_, surface_);
-
-        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-        // we are interested in queues with graphics and presentation capabilities
-        std::set<uint32_t> uniqueQueueFamilies = {
-            indices.graphicsFamily.value(),
-            indices.presentationFamily.value()
-        };
-
-        // This is required even if there is only a single queue:
-        // priority between 0.0 and 1.0
-        float queuePriority = 1.0f;
-
-        for (uint32_t queueFamily : uniqueQueueFamilies) {
-            VkDeviceQueueCreateInfo queueCreateInfo{};
-            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueCreateInfo.queueFamilyIndex = queueFamily;
-            // we need only one queue
-            // TODO: understand this
-            /**
-             * The currently available drivers will only allow you to create a small number 
-             * of queues for each queue family and you don't really need more than one. 
-             * That's because you can create all of the command buffers on multiple threads 
-             * and then submit them all at once on the main thread with a single low-overhead call
-             */
-            queueCreateInfo.queueCount = 1;
-            queueCreateInfo.pQueuePriorities = &queuePriority;
-            queueCreateInfos.push_back(queueCreateInfo);
-        }
-
-        // TODO: use what we saw previously with vkGetPhysicalDeviceFeatures
-        // like geometry shaders
-        // for now VK_FALSE
-        VkPhysicalDeviceFeatures deviceFeatures{};
-
-        VkDeviceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-
-        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-        createInfo.pQueueCreateInfos = queueCreateInfos.data();
-
-        createInfo.pEnabledFeatures = &deviceFeatures;
-
-        // it may look like physical device
-        // but we are working with logical device
-        // so for example some logical devices will be compute only
-        // or graphic only with VK_KHR_swapchain
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(DEVICE_EXTENSIONS.size());
-        createInfo.ppEnabledExtensionNames = DEVICE_EXTENSIONS.data();
-
-        // Below code if for older versions
-        // as newer implementations (since 1.3 ?)
-        // do not distinguish between instance and device specific validation layers
-        // and below information is discarded
-        if (ENABLE_VALIDATION_LAYERS) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
-            createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
-        } else {
-            createInfo.enabledLayerCount = 0;
-        }
-
-        if (vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create logical device!");
-        }
-
-        // retrieve queues handles
-        // if the queues are the same, it is more than likely than handles will be the same
-        vkGetDeviceQueue(device_, indices.graphicsFamily.value(), 0, &graphicsQueue_);
-        vkGetDeviceQueue(device_, indices.presentationFamily.value(), 0, &presentationQueue_);
+        device::createLogicalDevice(
+            physicalDevice_,
+            surface_,
+            DEVICE_EXTENSIONS,
+            ENABLE_VALIDATION_LAYERS,
+            VALIDATION_LAYERS,
+            &device_,
+            &graphicsQueue_,
+            &presentationQueue_
+        );
     }
 
     void createImageViews() {
@@ -1095,7 +1019,7 @@ private:
     }
 
     void initVulkan() {
-        printExtensions();
+        device::printExtensions();
         createInstance();
         setupDebugMessenger();
         // TODO: something is wrong here and on functions call nested:

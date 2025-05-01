@@ -78,6 +78,22 @@ namespace device {
 // }
 
 
+void printExtensions() {
+    // retrieve a list of supported extensions
+    // could be compared to glfwGetRequiredInstanceExtensions
+
+    uint32_t extensionCount = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+    std::vector<VkExtensionProperties> extensions(extensionCount);
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+    std::cout << "Available extensions:\n";
+
+    for (const auto& extension : extensions) {
+        std::cout << '\t' << extension.extensionName << '\n';
+    }
+
+}
+
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -169,20 +185,20 @@ bool checkDeviceExtensionSupport(VkPhysicalDevice device, const std::vector<cons
     return requiredExtensions.empty();
 }
 
-QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
     QueueFamilyIndices indices;
 
     uint32_t queue_family_count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nullptr);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queue_family_count, nullptr);
 
     std::vector<VkQueueFamilyProperties> queueFamilies(queue_family_count);
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queueFamilies.data());
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queue_family_count, queueFamilies.data());
 
     int i = 0;
     for (const auto& queueFamily : queueFamilies) {
         if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
             VkBool32 presentationSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentationSupport);
+            vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface, &presentationSupport);
             // Note: likely to be the same queue family
             // we could optimise later and look for a device
             // that support drawing and presentation in the same queue for performance
@@ -223,15 +239,15 @@ SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurface
     return details;
 }
 
-bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface, const std::vector<const char*>& device_extensions) {
-    QueueFamilyIndices indices = findQueueFamilies(device, surface);
+bool isPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, const std::vector<const char*>& device_extensions) {
+    QueueFamilyIndices indices = findQueueFamilies(physicalDevice, surface);
 
-    bool extensionsSupported = checkDeviceExtensionSupport(device, device_extensions);
+    bool extensionsSupported = checkDeviceExtensionSupport(physicalDevice, device_extensions);
 
     bool swapChainAdequate = false;
 
     if (extensionsSupported) {
-        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device, surface);
+        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice, surface);
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentationModes.empty();
     }
 
@@ -263,6 +279,89 @@ bool checkValidationLayerSupport(const std::vector<const char*>& validation_laye
     }
 
     return true;
+}
+
+void createLogicalDevice(
+    VkPhysicalDevice physicalDevice,
+    VkSurfaceKHR surface,
+    const std::vector<const char*>& device_extensions,
+    bool enable_validation_layers,
+    const std::vector<const char*>& validation_layers,
+    VkDevice* pLogicalDevice,
+    VkQueue* pGraphicsQueue,
+    VkQueue* pPresentQueue
+    ) {
+    // Specify the queues to be created
+    // TODO: dedicated function ?
+    device::QueueFamilyIndices indices = device::findQueueFamilies(physicalDevice, surface);
+
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+    // we are interested in queues with graphics and presentation capabilities
+    std::set<uint32_t> uniqueQueueFamilies = {
+        indices.graphicsFamily.value(),
+        indices.presentationFamily.value()
+    };
+
+    // This is required even if there is only a single queue:
+    // priority between 0.0 and 1.0
+    float queuePriority = 1.0f;
+
+    for (uint32_t queueFamily : uniqueQueueFamilies) {
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = queueFamily;
+        // we need only one queue
+        // TODO: understand this
+        /**
+         * The currently available drivers will only allow you to create a small number 
+         * of queues for each queue family and you don't really need more than one. 
+         * That's because you can create all of the command buffers on multiple threads 
+         * and then submit them all at once on the main thread with a single low-overhead call
+         */
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfos.push_back(queueCreateInfo);
+    }
+
+    // TODO: use what we saw previously with vkGetPhysicalDeviceFeatures
+    // like geometry shaders
+    // for now VK_FALSE
+    VkPhysicalDeviceFeatures deviceFeatures{};
+
+    VkDeviceCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    createInfo.pQueueCreateInfos = queueCreateInfos.data();
+
+    createInfo.pEnabledFeatures = &deviceFeatures;
+
+    // it may look like physical device
+    // but we are working with logical device
+    // so for example some logical devices will be compute only
+    // or graphic only with VK_KHR_swapchain
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(device_extensions.size());
+    createInfo.ppEnabledExtensionNames = device_extensions.data();
+
+    // Below code if for older versions
+    // as newer implementations (since 1.3 ?)
+    // do not distinguish between instance and device specific validation layers
+    // and below information is discarded
+    if (enable_validation_layers) {
+        createInfo.enabledLayerCount = static_cast<uint32_t>(validation_layers.size());
+        createInfo.ppEnabledLayerNames = validation_layers.data();
+    } else {
+        createInfo.enabledLayerCount = 0;
+    }
+
+    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, pLogicalDevice) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create logical device!");
+    }
+
+    // retrieve queues handles
+    // if the queues are the same, it is more than likely than handles will be the same
+    vkGetDeviceQueue(*pLogicalDevice, indices.graphicsFamily.value(), 0, pGraphicsQueue);
+    vkGetDeviceQueue(*pLogicalDevice, indices.presentationFamily.value(), 0, pPresentQueue);
 }
 
 
