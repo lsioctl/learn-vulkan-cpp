@@ -6,6 +6,13 @@
 
 namespace pipeline {
 
+/** the attachments referenced by the pipeline stages and their usage */
+void createRenderPass(
+    VkDevice logical_device,
+    VkFormat swapChainImageFormat,
+    VkRenderPass* pRenderPass
+);
+
 void createGraphicsPipeline(
     const char* vert_file,
     const char* frag_file,
