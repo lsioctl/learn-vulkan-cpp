@@ -17,18 +17,6 @@ struct QueueFamilyIndices {
     }
 };
 
-struct SwapChainSupportDetails {
-    /** 
-    Basic surface capabilities (min/max number of images in 
-    swap chain, min/max width and height of images)
-    */
-    VkSurfaceCapabilitiesKHR capabilities;
-    /** Surface formats (pixel format, color space) */
-    std::vector<VkSurfaceFormatKHR> formats;
-    /** Available presentation modes */
-    std::vector<VkPresentModeKHR> presentationModes;
-};
-
 void printExtensions();
 
 /**
@@ -78,7 +66,6 @@ std::vector<const char*> GetRequiredExtensions(bool enable_validation_layers);
  */
 bool checkDeviceExtensionSupport(VkPhysicalDevice device, const std::vector<const char*>& device_extensions);
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
-SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
 
 void createLogicalDevice(
     VkPhysicalDevice physicalDevice,
