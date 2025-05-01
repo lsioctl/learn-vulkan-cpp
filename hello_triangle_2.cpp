@@ -15,7 +15,8 @@
 #include <algorithm> // Necessary for std::clamp
 #include <fstream>
 
-#include "utils.hpp"
+#include "device.hpp"
+#include "swapchain.hpp"
 
 static std::vector<char> readFile(const std::string& filename) {
     // start reading at the end of the file and no text transformations
@@ -87,98 +88,6 @@ const auto FRAG_FILE = "./shaders/spirv/shader1.frag.spirv";
 #else
     const bool ENABLE_VALIDATION_LAYERS = true;
 #endif
-
-
-
-
-
-
-
-
-VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT messageType,
-    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-    void* pUserData) {
-
-    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
-
-    return VK_FALSE;
-}
-
-/***
- * proxy function
- * vkCreateDebugUtilsMessengerEXT is an extension function and so it not
- * automatically loaded
- * we have to look up the address ourself with vkGetInstanceProcAddr
- */
-VkResult CreateDebugUtilsMessengerEXT(
-    VkInstance instance, 
-    const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
-    const VkAllocationCallbacks* pAllocator, 
-    VkDebugUtilsMessengerEXT* pDebugMessenger
-) {
-    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    if (func != nullptr) {
-        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-    } else {
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
-    }
-}
-
-/***
- * proxy function
- * vkDestroyDebugUtilsMessengerEXT is an extension function and so it not
- * automatically loaded
- * we have to look up the address ourself with vkGetInstanceProcAddr
- */
-void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
-    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-    if (func != nullptr) {
-        func(instance, debugMessenger, pAllocator);
-    }
-}
-
-/***
- * Not used for now, just an example of what we could do to pickup
- * a GPU
- */
-bool IsDeviceSuitableAdvancedExample(VkPhysicalDevice device) {
-    VkPhysicalDeviceProperties deviceProperties;
-    VkPhysicalDeviceFeatures deviceFeatures;
-    vkGetPhysicalDeviceProperties(device, &deviceProperties);
-    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-
-    return deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
-           deviceFeatures.geometryShader;
-}
-
-/***
- * Not used for now
- */
-int RateDeviceSuitability(VkPhysicalDevice device) {
-    VkPhysicalDeviceProperties deviceProperties;
-    VkPhysicalDeviceFeatures deviceFeatures;
-    vkGetPhysicalDeviceProperties(device, &deviceProperties);
-    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-
-    int score = 0;
-
-    // Discrete GPUs have a significant performance advantage
-    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-        score += 1000;
-    }
-
-    // Maximum possible size of textures affects graphics quality
-    score += deviceProperties.limits.maxImageDimension2D;
-
-    // Application can't function without geometry shaders
-    if (!deviceFeatures.geometryShader) {
-        return 0;
-    }
-
-    return score;
-}
 
 
 /**
@@ -316,6 +225,10 @@ private:
             throw std::runtime_error("failed to create window surface!");
         }
     }
+
+    void setupDebugMessenger() {
+        device::setupDebugMessenger(instance_, ENABLE_VALIDATION_LAYERS, &debugMessenger_);
+    }
     
     /**
      * The swap extent is the resolution of the swap chain images and it's almost 
@@ -360,7 +273,7 @@ private:
         }
     }
     void createSwapChain() {
-        utils::SwapChainSupportDetails swapChainSupport = utils::querySwapChainSupport(physicalDevice_, surface_);
+        swapchain::SwapChainSupportDetails swapChainSupport = swapchain::querySwapChainSupport(physicalDevice_, surface_);
 
         VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
         VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentationModes);
@@ -392,7 +305,7 @@ private:
          */
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-        utils::QueueFamilyIndices indices = utils::findQueueFamilies(physicalDevice_, surface_);
+        device::QueueFamilyIndices indices = device::findQueueFamilies(physicalDevice_, surface_);
         uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentationFamily.value()};
 
         // handle swap chain images that may be used across multiple queue families.
@@ -438,24 +351,8 @@ private:
         // std::cout << window_ << std::endl;
     }
 
-    void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
-        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        // all types execept VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT 
-        // here to receive notifications about possible problems while leaving out 
-        // verbose general debug info.
-        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | 
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | 
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        // all types enabled here
-        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | 
-            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | 
-            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        createInfo.pfnUserCallback = DebugCallback;
-        createInfo.pUserData = nullptr; // Optional
-    }
-
     void createInstance() {
-        if (ENABLE_VALIDATION_LAYERS && !utils::checkValidationLayerSupport(VALIDATION_LAYERS)) {
+        if (ENABLE_VALIDATION_LAYERS && !device::checkValidationLayerSupport(VALIDATION_LAYERS)) {
             throw std::runtime_error("validation layers requested, but not available!");
         }
 
@@ -490,7 +387,7 @@ private:
             createInfo.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
             createInfo.ppEnabledLayerNames = VALIDATION_LAYERS.data();
 
-            populateDebugMessengerCreateInfo(debugCreateInfo);
+            device::populateDebugMessengerCreateInfo(debugCreateInfo);
             createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
         } else {
             createInfo.enabledLayerCount = 0;
@@ -498,7 +395,7 @@ private:
             createInfo.pNext = nullptr;
         }
 
-        auto extensions = utils::GetRequiredExtensions(ENABLE_VALIDATION_LAYERS);
+        auto extensions = device::GetRequiredExtensions(ENABLE_VALIDATION_LAYERS);
         createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
         createInfo.ppEnabledExtensionNames = extensions.data();
 
@@ -509,16 +406,7 @@ private:
         }
     }
 
-    void setupDebugMessenger() {
-        if (!ENABLE_VALIDATION_LAYERS) return;
-
-        VkDebugUtilsMessengerCreateInfoEXT createInfo{};
-        populateDebugMessengerCreateInfo(createInfo);
-        
-        if (CreateDebugUtilsMessengerEXT(instance_, &createInfo, nullptr, &debugMessenger_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to set up debug messenger!");
-        }
-    }
+    
 
     /***
      * pickup the first GPU supporting vulkan
@@ -536,7 +424,7 @@ private:
 
         // Pick the first suitable device
         for (const auto& device : devices) {
-            if (utils::isDeviceSuitable(device, surface_, DEVICE_EXTENSIONS)) {
+            if (device::isDeviceSuitable(device, surface_, DEVICE_EXTENSIONS)) {
                 physicalDevice_ = device;
                 break;
             }
@@ -547,40 +435,12 @@ private:
         }
     }
 
-    /***
-     * Not used for now, pickup GPU with the highest score
-     */
-    void pickPhysicalDeviceByScore() {
-        uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(instance_, &deviceCount, nullptr);
-
-        if (deviceCount == 0) {
-            throw std::runtime_error("failed to find GPUs with Vulkan support!");
-        }
-
-        std::vector<VkPhysicalDevice> devices(deviceCount);
-        vkEnumeratePhysicalDevices(instance_, &deviceCount, devices.data());
-
-        // Use an ordered map to automatically sort candidates by increasing score
-        std::multimap<int, VkPhysicalDevice> candidates;
-
-        for (const auto& device : devices) {
-            int score = RateDeviceSuitability(device);
-            candidates.insert(std::make_pair(score, device));
-        }
-
-        // Check if the best candidate is suitable at all
-        if (candidates.rbegin()->first > 0) {
-            physicalDevice_ = candidates.rbegin()->second;
-        } else {
-            throw std::runtime_error("failed to find a suitable GPU!");
-        }
-    }
+    
 
     void createLogicalDevice() {
         // Specify the queues to be created
         // TODO: dedicated function ?
-        utils::QueueFamilyIndices indices = utils::findQueueFamilies(physicalDevice_, surface_);
+        device::QueueFamilyIndices indices = device::findQueueFamilies(physicalDevice_, surface_);
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
         // we are interested in queues with graphics and presentation capabilities
@@ -1028,7 +888,7 @@ private:
     }
 
     void createCommandPool() {
-        utils::QueueFamilyIndices queueFamilyIndices = utils::findQueueFamilies(physicalDevice_, surface_);
+        device::QueueFamilyIndices queueFamilyIndices = device::findQueueFamilies(physicalDevice_, surface_);
 
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1299,10 +1159,11 @@ private:
         // or here doesn't change ?
         // mayberelated to validation layer for create/destroyInstance ?
         if (ENABLE_VALIDATION_LAYERS) {
+            std::cout << "Debug Messenger " << debugMessenger_ << std::endl;
             // Removing this triggers validation layer error on vkDestroy
             // ... The Vulkan spec states: All child objects created using instance must 
             // have been destroyed prior to destroying instance ...
-            DestroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
+            device::DestroyDebugUtilsMessengerEXT(instance_, debugMessenger_, nullptr);
         }
 
         // As we do not use RAII for now, destroy is needed

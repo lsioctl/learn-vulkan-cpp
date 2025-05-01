@@ -7,7 +7,7 @@
 #include <optional>
 #include <vector>
 
-namespace utils {
+namespace device {
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
@@ -28,7 +28,41 @@ struct SwapChainSupportDetails {
     /** Available presentation modes */
     std::vector<VkPresentModeKHR> presentationModes;
 };
-    
+
+/**
+ * Debug callback function for validation layers
+ */
+VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData);
+
+void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+
+void setupDebugMessenger(VkInstance instance, bool enable_validation_layers, VkDebugUtilsMessengerEXT* pDebugMessenger);
+
+/***
+ * proxy function
+ * vkCreateDebugUtilsMessengerEXT is an extension function and so it not
+ * automatically loaded
+ * we have to look up the address ourself with vkGetInstanceProcAddr
+ */
+VkResult CreateDebugUtilsMessengerEXT(
+    VkInstance instance, 
+    const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
+    const VkAllocationCallbacks* pAllocator, 
+    VkDebugUtilsMessengerEXT* pDebugMessenger
+);
+
+/***
+ * proxy function
+ * vkDestroyDebugUtilsMessengerEXT is an extension function and so it not
+ * automatically loaded
+ * we have to look up the address ourself with vkGetInstanceProcAddr
+ */
+void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
+
 bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface, const std::vector<const char*>& device_extensions);
 bool checkValidationLayerSupport(const std::vector<const char*>& validation_layers);
 /***
