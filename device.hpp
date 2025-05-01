@@ -67,6 +67,17 @@ std::vector<const char*> GetRequiredExtensions(bool enable_validation_layers);
 bool checkDeviceExtensionSupport(VkPhysicalDevice device, const std::vector<const char*>& device_extensions);
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
 
+/***
+ * pickup the first GPU supporting vulkan
+ */
+void pickPhysicalDevice(
+    VkInstance instance,
+    VkSurfaceKHR surface,
+    const std::vector<const char*>& device_extensions,
+    // TODO: better returning the handle
+    VkPhysicalDevice* pPhysicalDevice
+);
+
 void createLogicalDevice(
     VkPhysicalDevice physicalDevice,
     VkSurfaceKHR surface,

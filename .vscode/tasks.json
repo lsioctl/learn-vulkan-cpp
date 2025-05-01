@@ -9,6 +9,7 @@
                 "-g",
                 "device.cpp",
                 "swapchain.cpp",
+                "pipeline.cpp",
                 "${file}",
                 "-o",
                 "${fileDirname}/build/${fileBasenameNoExtension}",

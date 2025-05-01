@@ -259,6 +259,39 @@ bool checkValidationLayerSupport(const std::vector<const char*>& validation_laye
     return true;
 }
 
+/***
+ * pickup the first GPU supporting vulkan
+ */
+void pickPhysicalDevice(
+    VkInstance instance,
+    VkSurfaceKHR surface,
+    const std::vector<const char*>& device_extensions,
+    // TODO: better returning the handle
+    VkPhysicalDevice* pPhysicalDevice
+) {
+    uint32_t deviceCount = 0;
+    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+    if (deviceCount == 0) {
+        throw std::runtime_error("failed to find GPUs with Vulkan support!");
+    }
+
+    std::vector<VkPhysicalDevice> devices(deviceCount);
+    vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+
+    // Pick the first suitable device
+    for (const auto& device : devices) {
+        if (device::isPhysicalDeviceSuitable(device, surface, device_extensions)) {
+            *pPhysicalDevice = device;
+            break;
+        }
+    }
+
+    if (*pPhysicalDevice == VK_NULL_HANDLE) {
+        throw std::runtime_error("failed to find a suitable GPU!");
+    }
+}
+
 void createLogicalDevice(
     VkPhysicalDevice physicalDevice,
     VkSurfaceKHR surface,
