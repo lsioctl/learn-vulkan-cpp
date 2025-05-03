@@ -49,6 +49,8 @@ void errorCallback(int error, const char* description)
     fprintf(stderr, "Error: %s\n", description);
 }
 
+
+
 class HelloTriangleApplication {
 public:
     void run() {
@@ -100,6 +102,11 @@ private:
     std::vector<VkFence> inFlightFences_;
     /** keep track of the current frame */
     uint32_t currentFrame_ = 0;
+    /**
+     *  May be used if drivers does not trigger
+     *  VK_ERROR_OUT_OF_DATE_KHR when window is resized
+     */
+    bool framebufferResized_ = false;
 
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
@@ -127,12 +134,27 @@ private:
         );
     }
 
+    /** 
+     * glfw needs static function because it can't handle properly the this pointer
+     * this pointer is retrieved through window pointer and a, IMO
+     * kind of dirty hook with glfwSetWindowUserPointer and glfwGetWindowUserPointer
+     * */
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+        auto app = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
+        app->framebufferResized_ = true;
+    }
+
+
     void initWindow() {
         glfwSetErrorCallback(errorCallback);
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
         window_ = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+        // this allow to store an arbitrary pointer, and we need this, litteraly :D
+        // for framebufferResizeCallback
+        glfwSetWindowUserPointer(window_, this);
+        glfwSetFramebufferSizeCallback(window_, framebufferResizeCallback);
         // std::cout << window_ << std::endl;
     }
 
@@ -433,12 +455,11 @@ private:
 
     void drawFrame() {
         vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
-        // vkQueue needs VK_NULL_HANDLE or unsignaled fence
-        vkResetFences(device_, 1, &inFlightFences_[currentFrame_]);
+        
 
         uint32_t imageIndex;
         // extension so vk...KHR naming
-        vkAcquireNextImageKHR(
+        VkResult result = vkAcquireNextImageKHR(
             device_,
             swapChain_,
             // No timeout 
@@ -448,6 +469,23 @@ private:
             // vkImage in our swapchain array
             &imageIndex
         );
+
+        // VK_ERROR_OUT_OF_DATE_KHR: swapchain incompatible with the surface.
+        // usally happens when window is resized
+        // VK_SUBOPTIMAL_KHR: swapchain usable but surface properties are not matched exactly
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+            recreateSwapChain();
+            // try again in the next drawFrame call
+            return;
+        // 
+        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+            throw std::runtime_error("failed to acquire swap chain image!");
+        }
+
+        // Only reset the fence if we are submitting work
+        // has we used early return pattern in the lines before
+        // vkQueue needs VK_NULL_HANDLE or unsignaled fence
+        vkResetFences(device_, 1, &inFlightFences_[currentFrame_]);
 
         // record the command buffer
         // make sure the command buffer can be recorded
@@ -504,7 +542,22 @@ private:
         presentInfo.pResults = nullptr; // Optional
 
         // submit a request to present an image on the swapchain
-        vkQueuePresentKHR(presentationQueue_, &presentInfo);
+        result = vkQueuePresentKHR(presentationQueue_, &presentInfo);
+
+
+        /**
+         * It is important to do this after vkQueuePresentKHR to ensure that the semaphores are in a consistent 
+         * state, otherwise a signaled semaphore may never be properly waited upon
+         * 
+         * TODO: looks not very DRY with the calls on top of drawFrame
+         * why not using vkAcquireNextImageKHR result and early return instead ? 
+         */
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized_) {
+            framebufferResized_ = false;
+            recreateSwapChain();
+        } else if (result != VK_SUCCESS) {
+            throw std::runtime_error("failed to present swap chain image!");
+        }
 
         currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
     }
