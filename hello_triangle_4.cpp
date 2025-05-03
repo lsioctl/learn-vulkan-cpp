@@ -306,6 +306,16 @@ private:
      * pixels when creating the swap chain).
      */
     void recreateSwapChain() {
+        // custom handling of minimization:
+        // we wait until it is over
+        int width = 0, height = 0;
+        glfwGetFramebufferSize(window_, &width, &height);
+
+        while (width == 0 || height == 0) {
+            glfwGetFramebufferSize(window_, &width, &height);
+            glfwWaitEvents();
+        }
+
         // don't touch resources while they may be in use
         vkDeviceWaitIdle(device_);
 
