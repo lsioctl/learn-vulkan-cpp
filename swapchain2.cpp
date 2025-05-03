@@ -5,10 +5,10 @@
 #include <algorithm> // Necessary for std::clamp
 #include <vector>
 
-#include "swapchain.hpp"
+#include "swapchain2.hpp"
 #include "device.hpp"
 
-namespace swapchain {
+namespace swapchain2 {
 
 
 SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
@@ -197,5 +197,44 @@ void createSwapChain(
     *pSwapChainImageFormat = surfaceFormat.format;
     *pSwapChainExtent = extent;
 }
+
+void createImageViews(
+    VkDevice logical_device,
+    const std::vector<VkImage>& swapChainImages,
+    VkFormat swapChainImageFormat,
+    std::vector<VkImageView>& swapChainImageViews
+) {
+    auto swapChainImageSize = swapChainImages.size();
+    swapChainImageViews.resize(swapChainImageSize);
+
+    for (size_t i = 0; i < swapChainImageSize; i++) {
+        VkImageViewCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        createInfo.image = swapChainImages[i];
+        // could be 1D, 2D, 3D Textures and cube maps
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.format = swapChainImageFormat;
+        // The components field allows you to swizzle the color channels around.
+        // we will stick to the default
+        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        // 1 layer as we are not playing with stereographic 3D application
+        // 1 view by eye
+        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        // 1 layer as we are not playing with stereographic 3D application
+        // (1 view by eye) by accessing different layers
+        createInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(logical_device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create image views!");
+        }
+    }
+}
+
 
 }

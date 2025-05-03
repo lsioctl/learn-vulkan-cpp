@@ -9,6 +9,7 @@
                 "-g",
                 "device.cpp",
                 "swapchain.cpp",
+                "swapchain2.cpp",
                 "pipeline.cpp",
                 "${file}",
                 "-o",
