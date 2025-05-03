@@ -237,4 +237,39 @@ void createImageViews(
 }
 
 
+void createFramebuffers(
+    VkDevice logical_device,
+    const std::vector<VkImageView>& swapChainImageViews,
+    VkExtent2D swapChainExtent,
+    VkRenderPass renderPass,
+    std::vector<VkFramebuffer>& swapChainFramebuffers
+    
+) {
+    auto swapChainImageViewsSize = swapChainImageViews.size();
+    swapChainFramebuffers.resize(swapChainImageViewsSize);
+
+    for (size_t i = 0; i < swapChainImageViewsSize; i++) {
+        // in our case we have only one attachment by framebuffer: 
+        // the color attachment
+        VkImageView attachments[] = {
+            swapChainImageViews[i]
+        };
+
+        VkFramebufferCreateInfo framebufferInfo{};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = renderPass;
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.width = swapChainExtent.width;
+        framebufferInfo.height = swapChainExtent.height;
+        // our swapchain images are single images, so nb of layers is 1
+        framebufferInfo.layers = 1;
+
+        if (vkCreateFramebuffer(logical_device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create framebuffer!");
+        }
+    }
+}
+
+
 }

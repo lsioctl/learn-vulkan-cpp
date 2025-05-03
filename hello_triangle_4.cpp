@@ -242,47 +242,14 @@ private:
         );
     }
 
-    /**
-     * we've set up the render pass to expect a single framebuffer with the 
-     * same format as the swap chain images
-     * 
-     * The attachments specified during render pass creation are bound by 
-     * wrapping them into a VkFramebuffer object.
-     *  
-     * A framebuffer object references all of the VkImageView objects 
-     * that represent the attachments. 
-     * 
-     * The image that we have to use for the attachment depends on which image
-     * the swap chain returns when we retrieve one for presentation.
-     * That means that we have to create a framebuffer for all of the images
-     * in the swap chain and use the one that corresponds to the retrieved image 
-     * at drawing time.
-     */
     void createFramebuffers() {
-        auto swapChainImageViewsSize = swapChainImageViews_.size();
-        swapChainFramebuffers_.resize(swapChainImageViewsSize);
-
-        for (size_t i = 0; i < swapChainImageViewsSize; i++) {
-            // in our case we have only one attachment by framebuffer: 
-            // the color attachment
-            VkImageView attachments[] = {
-                swapChainImageViews_[i]
-            };
-
-            VkFramebufferCreateInfo framebufferInfo{};
-            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = renderPass_;
-            framebufferInfo.attachmentCount = 1;
-            framebufferInfo.pAttachments = attachments;
-            framebufferInfo.width = swapChainExtent_.width;
-            framebufferInfo.height = swapChainExtent_.height;
-            // our swapchain images are single images, so nb of layers is 1
-            framebufferInfo.layers = 1;
-
-            if (vkCreateFramebuffer(device_, &framebufferInfo, nullptr, &swapChainFramebuffers_[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create framebuffer!");
-            }
-        }
+        swapchain2::createFramebuffers(
+            device_,
+            swapChainImageViews_,
+            swapChainExtent_,
+            renderPass_,
+            swapChainFramebuffers_
+        );
     }
 
     void createCommandPool() {
