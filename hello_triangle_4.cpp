@@ -252,6 +252,48 @@ private:
         );
     }
 
+    void cleanupSwapChain() {
+        // Unlike images, imageViews have been created manually
+        // so we need to destroy them
+        for (auto imageView : swapChainImageViews_) {
+            vkDestroyImageView(device_, imageView, nullptr);
+        }
+
+        for (auto framebuffer : swapChainFramebuffers_) {
+            vkDestroyFramebuffer(device_, framebuffer, nullptr);
+        }
+
+        // Validation Layer error if we do this before destroying the surface
+        vkDestroySwapchainKHR(device_, swapChain_, nullptr);
+    }
+
+    /**
+     * The disadvantage of this approach is that we need to stop all rendering before creating the new swap chain.
+     * It is possible to create a new swap chain while drawing commands on an image from the old swap chain
+     * are still in-flight. You need to pass the previous swap chain to the oldSwapChain field in the 
+     * VkSwapchainCreateInfoKHR struct and destroy the old swap chain as soon as you've finished using it.
+     * 
+     * Also, note that we don't recreate the renderpass here for simplicity. In theory it can be possible
+     * for the swap chain image format to change during an applications' lifetime, e.g. when moving a window
+     * from an standard range to an high dynamic range monitor. This may require the application to recreate
+     * the renderpass to make sure the change between dynamic ranges is properly reflected
+     * 
+     * Also, note that in chooseSwapExtent we already query the new window resolution to make sure that the
+     * swap chain images have the (new) right size, so there's no need to modify chooseSwapExtent 
+     * (remember that we already had to use glfwGetFramebufferSize get the resolution of the surface in 
+     * pixels when creating the swap chain).
+     */
+    void recreateSwapChain() {
+        // don't touch resources while they may be in use
+        vkDeviceWaitIdle(device_);
+
+        cleanupSwapChain();
+
+        createSwapChain();
+        createImageViews();
+        createFramebuffers();
+    }
+
     void createCommandPool() {
         device::QueueFamilyIndices queueFamilyIndices = device::findQueueFamilies(physicalDevice_, surface_);
 
@@ -496,19 +538,9 @@ private:
         vkDeviceWaitIdle(device_);
     }
 
+
     void cleanup() {
-        // Unlike images, imageViews have been created manually
-        // so we need to destroy them
-        for (auto imageView : swapChainImageViews_) {
-            vkDestroyImageView(device_, imageView, nullptr);
-        }
-
-        for (auto framebuffer : swapChainFramebuffers_) {
-            vkDestroyFramebuffer(device_, framebuffer, nullptr);
-        }
-
-        // Validation Layer error if we do this before destroying the surface
-        vkDestroySwapchainKHR(device_, swapChain_, nullptr);
+        cleanupSwapChain();
 
         // glfw doesn't provide method for this, so us vk call instead
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
