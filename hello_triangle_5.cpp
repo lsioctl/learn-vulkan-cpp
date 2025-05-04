@@ -45,7 +45,7 @@ const std::vector<const char*> DEVICE_EXTENSIONS = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
-const auto VERT_FILE = "./shaders/spirv/shader1.vert.spirv";
+const auto VERT_FILE = "./shaders/spirv/shader2.vert.spirv";
 const auto FRAG_FILE = "./shaders/spirv/shader1.frag.spirv";
 
 void errorCallback(int error, const char* description)
@@ -53,15 +53,19 @@ void errorCallback(int error, const char* description)
     fprintf(stderr, "Error: %s\n", description);
 }
 
-
 // interleaving vertex attributes
 // attributes combined in one array of vertices
+// const std::vector<vertex::Vertex> vertices = {
+//     {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+//     {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+//     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+// };
+
 const std::vector<vertex::Vertex> vertices = {
-    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.0f, -0.8f}, {1.0f, 0.5f, 0.5f}},
     {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
 };
-
 
 class HelloTriangleApplication {
 public:
@@ -119,6 +123,8 @@ private:
      *  VK_ERROR_OUT_OF_DATE_KHR when window is resized
      */
     bool framebufferResized_ = false;
+    VkBuffer vertexBuffer_;
+    VkDeviceMemory vertexBufferMemory_;
 
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
@@ -355,6 +361,105 @@ private:
         }
     }
 
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memProperties);
+
+        /**
+         * The VkPhysicalDeviceMemoryProperties structure has two arrays 
+         * memoryTypes and memoryHeaps. 
+         * Memory heaps are distinct memory resources like dedicated VRAM 
+         * and swap space in RAM for when VRAM runs out. 
+         * The different types of memory exist within these heaps. 
+         * Right now we'll only concern ourselves with the type of memory 
+         * and not the heap it comes from, but you can imagine 
+         * that this can affect performance.
+         */
+
+        /**
+         * The typeFilter parameter will be used to specify the bit field of memory types that are suitable. 
+         * That means that we can find the index of a suitable memory type by simply iterating 
+         * over them and checking if the corresponding bit is set to 1.
+         */
+
+        /**
+         * However, we're not just interested in a memory type that is suitable for the vertex buffer. 
+         * We also need to be able to write our vertex data to that memory. 
+         * The memoryTypes array consists of VkMemoryType structs that specify the heap and properties
+         * of each type of memory. The properties define special features of the memory, 
+         * like being able to map it so we can write to it from the CPU. This property is indicated 
+         * with VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, but we also need to use the 
+         * VK_MEMORY_PROPERTY_HOST_COHERENT_BIT property. We'll see why when we map the memory
+         */
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        throw std::runtime_error("failed to find suitable memory type!");
+    }   
+
+    /**
+     * Unlike the Vulkan objects we've been dealing with so far, buffers
+     * do not automatically allocate memory for themselves
+     */
+    void createVertexBuffer() {
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        // like images in the swap chain vb can be owned by a specific queue family
+        // or shared between multiple at the same time
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        // The flags parameter is used to configure sparse buffer memory, 
+        // which is not relevant right now. 
+        // We'll leave it at the default value of 0.
+        bufferInfo.flags = 0;
+
+        if (vkCreateBuffer(device_, &bufferInfo, nullptr, &vertexBuffer_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create vertex buffer!");
+        }
+
+        // buffer has been created but no memory is assigned to it yet
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device_, vertexBuffer_, &memRequirements);
+        
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(
+            memRequirements.memoryTypeBits, 
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+
+        if (vkAllocateMemory(device_, &allocInfo, nullptr, &vertexBufferMemory_) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate vertex buffer memory!");
+        }
+
+        // memory allocation successful, so bind it to the buffer
+        vkBindBufferMemory(device_, vertexBuffer_, vertexBufferMemory_, 0);
+
+        // fill the vertex buffer
+        void* data;
+        vkMapMemory(device_, vertexBufferMemory_, 0, bufferInfo.size, 0, &data);
+        /**
+         * Unfortunately the driver may not immediately copy the data 
+         * into the buffer memory, for example because of caching. 
+         * It is also possible that writes to the buffer are not visible 
+         * in the mapped memory yet. There are two ways to deal with that problem:
+         * * Use a memory heap that is host coherent, indicated with VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+         * * Call vkFlushMappedMemoryRanges after writing to the mapped memory, 
+         * and call vkInvalidateMappedMemoryRanges before reading from the mapped memory
+         * 
+         * We went for the first approach, which ensures that the mapped memory always matches
+         * the contents of the allocated memory. Do keep in mind that this may lead to slightly 
+         * worse performance than explicit flushing, but we'll see why that doesn't matter in the next chapter.
+         */
+        memcpy(data, vertices.data(), (size_t) bufferInfo.size);
+        vkUnmapMemory(device_, vertexBufferMemory_);
+    }
+
     void createCommandBuffers() {
         commandBuffers_.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -410,6 +515,10 @@ private:
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline_);
 
+        VkBuffer vertexBuffers[] = {vertexBuffer_};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
         // as we defined viewport and scissor state to be dynamic
         // we need to set them in the command buffer before the draw command
         VkViewport viewport{};
@@ -426,14 +535,17 @@ private:
         scissor.extent = swapChainExtent_;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        /**
-         * 
-            vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
-            instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-            firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
-            firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-         */
-        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        vkCmdDraw(
+            commandBuffer,
+            // vertexCount
+            static_cast<uint32_t>(vertices.size()),
+            // instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+            1,
+            // firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
+            0,
+            // firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+            0
+        );
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -599,6 +711,7 @@ private:
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffers();
+        createVertexBuffer();
         createCommandPool();
         createCommandBuffers();
         createSyncObjects();
@@ -616,6 +729,9 @@ private:
 
     void cleanup() {
         cleanupSwapChain();
+
+        vkDestroyBuffer(device_, vertexBuffer_, nullptr);
+        vkFreeMemory(device_, vertexBufferMemory_, nullptr);
 
         // glfw doesn't provide method for this, so us vk call instead
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
