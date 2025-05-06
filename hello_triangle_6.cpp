@@ -447,20 +447,85 @@ private:
         vkBindBufferMemory(device_, buffer, bufferMemory, 0);
     }
 
-   
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        /**
+         * You may wish to create a separate command pool for these kinds of short-lived buffers,
+         * because the implementation may be able to apply memory allocation optimizations.
+         * You should use the VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag during command pool
+         * generation in that case.
+         * 
+         * TODO: create a command buffer, pool function
+         * TODO: dedicated command pool for memory transfer
+         * for now we use the command commandPool_ but WARNING: it has to be created
+         * before calling this function, or it will SEGFAULT at vkAllocateCommandBuffers
+         */
+        allocInfo.commandPool = commandPool_;
+        allocInfo.commandBufferCount = 1;
+
+        VkCommandBuffer commandBuffer;
+        vkAllocateCommandBuffers(device_, &allocInfo, &commandBuffer);
+
+        // start recording
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        // We're only going to use the command buffer once and wait with returning 
+        // from the function until the copy operation has finished executing
+        // good practice: tell the driver our intent
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+        // we have to use regions array (of VkBufferCopy structs)
+        // we can't use VK_WHOLE_SIzE like VkMapMemory
+        VkBufferCopy copyRegion{};
+        copyRegion.srcOffset = 0; // Optional
+        copyRegion.dstOffset = 0; // Optional
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+        // end recording
+        vkEndCommandBuffer(commandBuffer);
+
+        // execute the command buffer to complete the transfer
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+
+        vkQueueSubmit(graphicsQueue_, 1, &submitInfo, VK_NULL_HANDLE);
+        // there is no event to wait, unlike the draw command
+        // we juste want to execute immediately
+        // two way to wait for the transfer to complete:
+        // * vkWaitForFence (would allow us to schedule multiple transfer simultaneously)
+        // * vkQueueWaitIdle
+        vkQueueWaitIdle(graphicsQueue_);
+
+        vkFreeCommandBuffers(device_, commandPool_, 1, &commandBuffer);
+    }
+
     void createVertexBuffer() {
         VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+
         createBuffer(
             bufferSize,
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            // no more VK_BUFFER_USAGE_VERTEX_BUFFER_BIT as we are
+            // creating a staging buffer
+            // Buffer can be used as source in a memory transfer operation.
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            vertexBuffer_,
-            vertexBufferMemory_);
+            stagingBuffer,
+            stagingBufferMemory
+        );
 
-        // fill the vertex buffer
+        // fill the staging buffer
         void* data;
-        vkMapMemory(device_, vertexBufferMemory_, 0, bufferSize, 0, &data);
+        vkMapMemory(device_, stagingBufferMemory, 0, bufferSize, 0, &data);
 
         /**
          * Unfortunately the driver may not immediately copy the data 
@@ -473,10 +538,30 @@ private:
          * 
          * We went for the first approach, which ensures that the mapped memory always matches
          * the contents of the allocated memory. Do keep in mind that this may lead to slightly 
-         * worse performance than explicit flushing, but we'll see why that doesn't matter in the next chapter.
+         * worse performance than explicit flushing.bufferSize
+         * 
+         * But now we are deadling with a staging buffer, TODO: does it matter with a staging buffer ?
          */
         memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
-        vkUnmapMemory(device_, vertexBufferMemory_);
+        vkUnmapMemory(device_, stagingBufferMemory);
+
+        createBuffer(
+            bufferSize,
+            // vkMap usualy not possible as device local
+            // hence we specify it can be used as a transfer destination
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            // The most optimal memory on the GPU, but usually not accessible from the CPU
+            // hence the use of a staging buffer
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            vertexBuffer_,
+            vertexBufferMemory_
+        );
+
+        copyBuffer(stagingBuffer, vertexBuffer_, bufferSize);
+
+        // we can now clean the staging buffer
+        vkDestroyBuffer(device_, stagingBuffer, nullptr);
+        vkFreeMemory(device_, stagingBufferMemory, nullptr);
     }
 
     void createCommandBuffers() {
@@ -730,8 +815,8 @@ private:
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffers();
-        createVertexBuffer();
         createCommandPool();
+        createVertexBuffer();
         createCommandBuffers();
         createSyncObjects();
     }
