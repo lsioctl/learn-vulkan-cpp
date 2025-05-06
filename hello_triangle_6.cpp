@@ -414,7 +414,7 @@ private:
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.size = size;
-        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        bufferInfo.usage = usage;
         // like images in the swap chain vb can be owned by a specific queue family
         // or shared between multiple at the same time
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -423,13 +423,13 @@ private:
         // We'll leave it at the default value of 0.
         bufferInfo.flags = 0;
 
-        if (vkCreateBuffer(device_, &bufferInfo, nullptr, &vertexBuffer_) != VK_SUCCESS) {
+        if (vkCreateBuffer(device_, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
             throw std::runtime_error("failed to create vertex buffer!");
         }
 
         // buffer has been created but no memory is assigned to it yet
         VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(device_, vertexBuffer_, &memRequirements);
+        vkGetBufferMemoryRequirements(device_, buffer, &memRequirements);
         
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -439,12 +439,12 @@ private:
             properties
         );
 
-        if (vkAllocateMemory(device_, &allocInfo, nullptr, &vertexBufferMemory_) != VK_SUCCESS) {
+        if (vkAllocateMemory(device_, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate vertex buffer memory!");
         }
 
         // memory allocation successful, so bind it to the buffer
-        vkBindBufferMemory(device_, vertexBuffer_, vertexBufferMemory_, 0);
+        vkBindBufferMemory(device_, buffer, bufferMemory, 0);
     }
 
    
