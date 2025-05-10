@@ -10,11 +10,13 @@
 #include <set>
 #include <cstdint> // Necessary for uint32_t
 #include <fstream>
+#include <chrono>
 
 // Let GLFW include by itslef vulkan headers
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include "glm/glm.hpp"
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "device.hpp"
 #include "swapchain2.hpp"
@@ -139,6 +141,9 @@ private:
     VkDeviceMemory vertexBufferMemory_;
     VkBuffer indexBuffer_;
     VkDeviceMemory indexBufferMemory_;
+    std::vector<VkBuffer> uniformBuffers_;
+    std::vector<VkDeviceMemory> uniformBuffersMemory_;
+    std::vector<void*> uniformBuffersMapped_;
 
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
@@ -317,6 +322,7 @@ private:
             device_,
             swapChainExtent_,
             renderPass_,
+            descriptorSetLayout_,
             pipelineLayout_,
             graphicsPipeline_
         );
@@ -636,6 +642,38 @@ private:
         vkFreeMemory(device_, stagingBufferMemory, nullptr);
     }
 
+    /**
+     * We're going to copy new data to the uniform buffer every frame,
+     * so it doesn't really make any sense to have a staging buffer.
+     * It would just add extra overhead in this case and likely degrade performance instead of improving it.
+     * We should have multiple buffers,
+     * because multiple frames may be in flight at the same time and we don't want to update the buffer
+     * in preparation of the next frame while a previous one is still reading from it! Thus, we need
+     * to have as many uniform buffers as we have frames in flight, and write to a uniform buffer
+     * that is not currently being read by the GPU
+     */
+    void createUniformBuffers() {
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+        uniformBuffers_.resize(MAX_FRAMES_IN_FLIGHT);
+        uniformBuffersMemory_.resize(MAX_FRAMES_IN_FLIGHT);
+        uniformBuffersMapped_.resize(MAX_FRAMES_IN_FLIGHT);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            createBuffer(
+                bufferSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                uniformBuffers_[i],
+                uniformBuffersMemory_[i]);
+
+            // The buffer stays mapped the whole application time
+            // as maping has a cost, it is best to avoid doing it every time
+            // this is called "persistent mapping"
+            vkMapMemory(device_, uniformBuffersMemory_[i], 0, bufferSize, 0, &uniformBuffersMapped_[i]);
+        }
+    }
+
     void createCommandBuffers() {
         commandBuffers_.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -769,6 +807,45 @@ private:
         }
     }
 
+    /** 
+     * geometry rotates 90 degrees per second regardless of frame rate.
+     * 
+     * TODO: proper delta time
+     * */
+    void updateUniformBuffer(uint32_t currentImage) {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        // rotation around the z axis
+        UniformBufferObject ubo{};
+        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+        // look from above at 45 degres angle
+        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
+        ubo.proj = glm::perspective(
+            // 45 degrees vertical fov
+            glm::radians(45.0f),
+            // aspect ratio
+            swapChainExtent_.width / static_cast<float>(swapChainExtent_.height),
+            // near plane
+            0.1f,
+            // far plane
+            10.0f
+        );
+
+        // trick because glm is for opengl, where y axis is inverted
+        // here flip the sign of the scaling factor on th y axis
+        ubo.proj[1][1] *= -1;
+
+        // all transformations defined, we can copy
+        // no staging buffer, and memory already mapped
+        // it is not the most optimal way of doing (see push constants)
+        memcpy(uniformBuffersMapped_[currentImage], &ubo, sizeof(ubo));
+    }
+
     void drawFrame() {
         vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
         
@@ -807,6 +884,8 @@ private:
         // make sure the command buffer can be recorded
         vkResetCommandBuffer(commandBuffers_[currentFrame_], 0);
         recordCommandBuffer(commandBuffers_[currentFrame_], imageIndex);
+
+        updateUniformBuffer(currentFrame_);
 
         // submitting the command buffer
         VkSubmitInfo submitInfo{};
@@ -891,11 +970,13 @@ private:
         createSwapChain();
         createImageViews();
         createRenderPass();
+        createDescriptorSetLayout();
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
         createVertexBuffer();
         createIndexBuffer();
+        createUniformBuffers();
         createCommandBuffers();
         createSyncObjects();
     }
@@ -925,6 +1006,13 @@ private:
         vkDestroyRenderPass(device_, renderPass_, nullptr);
 
         vkDestroyPipeline(device_, graphicsPipeline_, nullptr);
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroyBuffer(device_, uniformBuffers_[i], nullptr);
+            vkFreeMemory(device_, uniformBuffersMemory_[i], nullptr);
+        }
+
+        vkDestroyDescriptorSetLayout(device_, descriptorSetLayout_, nullptr);
 
         vkDestroyPipelineLayout(device_, pipelineLayout_, nullptr);
 

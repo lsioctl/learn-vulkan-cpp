@@ -111,6 +111,7 @@ void createGraphicsPipeline(
     VkDevice logical_device,
     VkExtent2D swapChainExtent,
     VkRenderPass renderPass,
+    const VkDescriptorSetLayout& descriptorSetLayout,
     VkPipelineLayout& pipelineLayout,
     VkPipeline& graphicsPipeline
 ) {
@@ -302,12 +303,10 @@ void createGraphicsPipeline(
     colorBlending.blendConstants[3] = 0.0f; // Optional
 
     // For uniform values
-    // for now we don't have any but we still need
-    // to create an empty pielineLayout
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0; // Optional
-    pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Optional
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 

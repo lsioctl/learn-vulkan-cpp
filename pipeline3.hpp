@@ -19,6 +19,7 @@ void createGraphicsPipeline(
     VkDevice logical_device,
     VkExtent2D swapChainExtent,
     VkRenderPass renderPass,
+    const VkDescriptorSetLayout& descriptorSetLayout,
     VkPipelineLayout& pipelineLayout,
     VkPipeline& graphicsPipeline
 );
