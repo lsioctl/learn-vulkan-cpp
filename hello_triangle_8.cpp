@@ -280,7 +280,7 @@ private:
         pipeline3::createRenderPass(
             device_,
             swapChainImageFormat_,
-            &renderPass_
+            renderPass_
         );
     }
 

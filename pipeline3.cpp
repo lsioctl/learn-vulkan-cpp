@@ -50,7 +50,7 @@ VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice logica
 void createRenderPass(
     VkDevice logical_device,
     VkFormat swapChainImageFormat,
-    VkRenderPass* pRenderPass
+    VkRenderPass& renderPass
 ) {
     /**
      * In our case we'll have just a single color buffer attachment 
@@ -100,7 +100,7 @@ void createRenderPass(
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
 
-    if (vkCreateRenderPass(logical_device, &renderPassInfo, nullptr, pRenderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(logical_device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
 }

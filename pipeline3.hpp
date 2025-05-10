@@ -10,7 +10,7 @@ namespace pipeline3 {
 void createRenderPass(
     VkDevice logical_device,
     VkFormat swapChainImageFormat,
-    VkRenderPass* pRenderPass
+    VkRenderPass& renderPass
 );
 
 void createGraphicsPipeline(
