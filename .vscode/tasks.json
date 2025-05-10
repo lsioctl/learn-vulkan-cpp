@@ -12,6 +12,7 @@
                 "swapchain2.cpp",
                 "pipeline.cpp",
                 "pipeline2.cpp",
+                "pipeline3.cpp",
                 "${file}",
                 "-o",
                 "${fileDirname}/build/${fileBasenameNoExtension}",
