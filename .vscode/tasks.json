@@ -13,6 +13,7 @@
                 "pipeline.cpp",
                 "pipeline2.cpp",
                 "pipeline3.cpp",
+                "camera.cpp",
                 "${file}",
                 "-o",
                 "${fileDirname}/build/${fileBasenameNoExtension}",
