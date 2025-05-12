@@ -1,4 +1,5 @@
 #include <stdexcept>
+#include <cstring>
 
 #include "buffer.hpp"
 
@@ -154,5 +155,75 @@ void copyBuffer(
     vkQueueWaitIdle(graphicsQueue);
 
     vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
+}
+
+void createVertexBuffer(
+    VkPhysicalDevice physicalDevice,
+    VkDevice logicalDevice,
+    VkCommandPool commandPool,
+    VkQueue graphicsQueue,
+    const std::vector<vertex::Vertex>& vertices,
+    VkBuffer& vertexBuffer,
+    VkDeviceMemory& vertexBufferMemory
+) {
+    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+
+    buffer::createBuffer(
+        physicalDevice,
+        logicalDevice,
+        bufferSize,
+        // no more VK_BUFFER_USAGE_VERTEX_BUFFER_BIT as we are
+        // creating a staging buffer
+        // Buffer can be used as source in a memory transfer operation.
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        stagingBuffer,
+        stagingBufferMemory
+    );
+
+    // fill the staging buffer
+    void* data;
+    vkMapMemory(logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+
+    /**
+     * Unfortunately the driver may not immediately copy the data 
+     * into the buffer memory, for example because of caching. 
+     * It is also possible that writes to the buffer are not visible 
+     * in the mapped memory yet. There are two ways to deal with that problem:
+     * * Use a memory heap that is host coherent, indicated with VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+     * * Call vkFlushMappedMemoryRanges after writing to the mapped memory, 
+     * and call vkInvalidateMappedMemoryRanges before reading from the mapped memory
+     * 
+     * We went for the first approach, which ensures that the mapped memory always matches
+     * the contents of the allocated memory. Do keep in mind that this may lead to slightly 
+     * worse performance than explicit flushing.bufferSize
+     * 
+     * But now we are dealing with a staging buffer, TODO: does it matter with a staging buffer ?
+     */
+    memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
+    vkUnmapMemory(logicalDevice, stagingBufferMemory);
+
+    buffer::createBuffer(
+        physicalDevice,
+        logicalDevice,
+        bufferSize,
+        // vkMap usualy not possible as device local
+        // hence we specify it can be used as a transfer destination
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        // The most optimal memory on the GPU, but usually not accessible from the CPU
+        // hence the use of a staging buffer
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        vertexBuffer,
+        vertexBufferMemory
+    );
+
+    buffer::copyBuffer(logicalDevice, commandPool, graphicsQueue, stagingBuffer, vertexBuffer, bufferSize);
+
+    // we can now clean the staging buffer
+    vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
+    vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 }
 }
