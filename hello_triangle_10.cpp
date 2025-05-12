@@ -450,7 +450,8 @@ private:
     }
 
     void createVertexBuffer() {
-        buffer::createVertexBuffer(
+        buffer::createBuffer(
+            buffer::Type::Vertex,
             physicalDevice_,
             device_,
             commandPool_,
@@ -462,39 +463,16 @@ private:
     }
 
     void createIndexBuffer() {
-        VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
         buffer::createBuffer(
+            buffer::Type::Index,
             physicalDevice_,
             device_,
-            bufferSize,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            stagingBuffer,
-            stagingBufferMemory
-        );
-
-        void* data;
-        vkMapMemory(device_, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, indices.data(), (size_t) bufferSize);
-        vkUnmapMemory(device_, stagingBufferMemory);
-
-        buffer::createBuffer(
-            physicalDevice_,
-            device_,
-            bufferSize,
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            commandPool_,
+            graphicsQueue_,
+            indices,
             indexBuffer_,
             indexBufferMemory_
         );
-
-        buffer::copyBuffer(device_, commandPool_, graphicsQueue_, stagingBuffer, indexBuffer_, bufferSize);
-
-        vkDestroyBuffer(device_, stagingBuffer, nullptr);
-        vkFreeMemory(device_, stagingBufferMemory, nullptr);
     }
 
     /**
@@ -515,7 +493,7 @@ private:
         uniformBuffersMapped_.resize(MAX_FRAMES_IN_FLIGHT);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            buffer::createBuffer(
+            buffer::bindBuffer(
                 physicalDevice_,
                 device_,
                 bufferSize,
