@@ -39,4 +39,7 @@ public:
     // Update the LookAt with position, orientation, ... and return it
     const glm::mat4& getUpdatedViewMatrix();
     const glm::vec3& getPosition() const;
+    const glm::vec3& getFront() const;
+    float getYaw() const;
+    float getPitch() const;
 };

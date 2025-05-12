@@ -95,3 +95,15 @@ const glm::mat4& Camera::getUpdatedViewMatrix() {
 const glm::vec3& Camera::getPosition() const {
     return position_;
 }
+
+const glm::vec3& Camera::getFront() const {
+    return front_;
+}
+
+float Camera::getYaw() const {
+    return yaw_;
+}
+
+float Camera::getPitch() const {
+    return pitch_;
+}

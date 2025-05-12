@@ -1110,7 +1110,9 @@ private:
         // for delta_time
         auto last_frame_time = 0.0f;
         
-        glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        // cursor enabled while I find a way to escape capturing
+        // without escape button
+        // glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         glfwSetCursorPosCallback(window_, mouseCallback);
 
         while (!glfwWindowShouldClose(window_)) {
@@ -1122,8 +1124,12 @@ private:
             last_frame_time = current_frame_time;
     
             processInput(window_, camera_, delta_time);
-            std::cout << delta_time << std::endl;
-            std::cout << glm::to_string(camera_.getPosition()) << std::endl;
+            // std::cout << delta_time << std::endl;
+            // std::cout << glm::to_string(camera_.getPosition()) << std::endl;
+            // std::cout << glm::to_string(camera_.getFront()) << std::endl;
+            // std::cout << camera_.getPitch() << std::endl;
+
+
             drawFrame();
         }
 
