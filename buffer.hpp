@@ -16,14 +16,13 @@ namespace buffer
         VkDeviceMemory& bufferMemory
     );
 
-    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+    void copyBuffer(
+        VkDevice logicalDevice,
+        VkCommandPool commandPool,
+        VkQueue graphicsQueue,
+        VkBuffer srcBuffer,
+        VkBuffer dstBuffer,
+        VkDeviceSize size
+    );
 
-
-
-
-
-
-
-
-
-}   
+}
