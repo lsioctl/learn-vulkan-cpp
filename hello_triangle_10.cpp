@@ -318,30 +318,11 @@ private:
         );
     }
 
-    /**
-     * A descriptor is a way for shaders to freely access resources like buffers and images.
-     * We will use it for uniforms (uniforms exist to avoid copy for exemple a view model projection
-     * matric for each fram in a vertex buffer)
-     */
     void createDescriptorSetLayout() {
-        VkDescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0;
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        // with have only one MVP
-        uboLayoutBinding.descriptorCount = 1;
-        // in which shader stage it will be referenced
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        // only relevant for image sampling descriptors, optional
-        uboLayoutBinding.pImmutableSamplers = nullptr;
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 1;
-        layoutInfo.pBindings = &uboLayoutBinding;
-
-        if (vkCreateDescriptorSetLayout(device_, &layoutInfo, nullptr, &descriptorSetLayout_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor set layout!");
-        }
+        buffer::createDescriptorSetLayout(
+            device_,
+            descriptorSetLayout_
+        );
     }
 
     void createGraphicsPipeline() {

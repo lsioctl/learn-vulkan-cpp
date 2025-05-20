@@ -212,6 +212,30 @@ void createDescriptorPool(
     }
 }
 
+void createDescriptorSetLayout(
+    VkDevice logicalDevice,
+    VkDescriptorSetLayout& descriptorSetLayout
+) {
+    VkDescriptorSetLayoutBinding uboLayoutBinding{};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // with have only one MVP
+    uboLayoutBinding.descriptorCount = 1;
+    // in which shader stage it will be referenced
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    // only relevant for image sampling descriptors, optional
+    uboLayoutBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &uboLayoutBinding;
+
+    if (vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create descriptor set layout!");
+    }
+}
+
 void createDescriptorSets(
     VkDevice logicalDevice,
     int maxFramesInFlight,

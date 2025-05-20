@@ -153,6 +153,16 @@ void createDescriptorPool(
 );
 
 /**
+ * A descriptor is a way for shaders to freely access resources like buffers and images.
+ * We will use it for uniforms (uniforms exist to avoid copy for exemple a view model projection
+ * matric for each fram in a vertex buffer)
+ */
+void createDescriptorSetLayout(
+    VkDevice logicalDevice,
+    VkDescriptorSetLayout& descriptorSetLayout
+);
+
+/**
  * The descriptor layout describes the type of descriptors that can be bound.
  * Here we're going to create a descriptor set for each VkBuffer resource to bind
  * it to the uniform buffer descriptor.
