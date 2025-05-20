@@ -157,16 +157,6 @@ void copyBuffer(
     vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 }
 
-/**
- * We're going to copy new data to the uniform buffer every frame,
- * so it doesn't really make any sense to have a staging buffer.
- * It would just add extra overhead in this case and likely degrade performance instead of improving it.
- * We should have multiple buffers,
- * because multiple frames may be in flight at the same time and we don't want to update the buffer
- * in preparation of the next frame while a previous one is still reading from it! Thus, we need
- * to have as many uniform buffers as we have frames in flight, and write to a uniform buffer
- * that is not currently being read by the GPU
- */
 void createUniformBuffers(
     VkPhysicalDevice physicalDevice,
     VkDevice logicalDevice,
@@ -195,6 +185,83 @@ void createUniformBuffers(
         // as maping has a cost, it is best to avoid doing it every time
         // this is called "persistent mapping"
         vkMapMemory(logicalDevice, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+    }
+}
+
+void createDescriptorPool(
+    VkDevice logicalDevice,
+    int maxFramesInFlight,
+    VkDescriptorPool& descriptorPool
+) {
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // we will allocate one descriptor set by frame
+    poolSize.descriptorCount = static_cast<uint32_t>(maxFramesInFlight);
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = static_cast<uint32_t>(maxFramesInFlight);
+    // We're not going to touch the descriptor set after creating it, so we don't need this flag
+    // optional
+    poolInfo.flags = 0;
+
+    if (vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create descriptor pool!");
+    }
+}
+
+void createDescriptorSets(
+    VkDevice logicalDevice,
+    int maxFramesInFlight,
+    const std::vector<VkBuffer>& uniformBuffers,
+    const VkDescriptorPool& descriptorPool,
+    VkDescriptorSetLayout descriptorSetLayout,
+    std::vector<VkDescriptorSet>& descriptorSets
+) {
+    // one descriptor set for each frame in flight,
+    // all with the same layout
+    std::vector<VkDescriptorSetLayout> layouts(maxFramesInFlight, descriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(maxFramesInFlight);
+    allocInfo.pSetLayouts = layouts.data();
+
+    descriptorSets.resize(maxFramesInFlight);
+    // this calls allocate descriptor sets, each with one buffer descriptor
+    if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate descriptor sets!");
+    }
+
+    // configure the descriptor sets we just allocated
+    for (size_t i = 0; i < maxFramesInFlight; i++) {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = uniformBuffers[i];
+        bufferInfo.offset = 0;
+        // we could also use VK_WHOLE_SIZE here as
+        // we overwrite the whole buffer
+        bufferInfo.range = sizeof(buffer::UniformBufferObject);
+
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = descriptorSets[i];
+        descriptorWrite.dstBinding = 0;
+        // descriptors could be array, here it is not
+        // so the index is 0
+        descriptorWrite.dstArrayElement = 0;
+        // specify the type of decriptor ... again :(
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        // in case of an array, use only 1. Not it is starting at dstArrayElement
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+        descriptorWrite.pImageInfo = nullptr; // Optional
+        descriptorWrite.pTexelBufferView = nullptr; // Optional
+
+        // accepts two kind of array:
+        // VkWriteDescriptorSet and an array of VkCopyDescriptorSet
+        vkUpdateDescriptorSets(logicalDevice, 1, &descriptorWrite, 0, nullptr);
     }
 }
 

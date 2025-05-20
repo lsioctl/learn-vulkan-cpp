@@ -761,80 +761,24 @@ private:
         currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
-    /**
-     * Descriptor sets can't be created directly, they must be allocated from a pool like command buffers
-     */
     void createDescriptorPool() {
-        VkDescriptorPoolSize poolSize{};
-        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        // we will allocate one descriptor set by frame
-        poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSize;
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        // We're not going to touch the descriptor set after creating it, so we don't need this flag
-        // optional
-        poolInfo.flags = 0;
-
-        if (vkCreateDescriptorPool(device_, &poolInfo, nullptr, &descriptorPool_) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
+        buffer::createDescriptorPool(
+            device_,
+            MAX_FRAMES_IN_FLIGHT,
+            descriptorPool_
+        );
     }
 
-    /**
-     * The descriptor layout describes the type of descriptors that can be bound.
-     * Here we're going to create a descriptor set for each VkBuffer resource to bind
-     * it to the uniform buffer descriptor.
-     */
     void createDescriptorSets() {
-        // one descriptor set for each frame in flight,
-        // all with the same layout
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout_);
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = descriptorPool_;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        allocInfo.pSetLayouts = layouts.data();
-
-        descriptorSets_.resize(MAX_FRAMES_IN_FLIGHT);
-        // this calls allocate descriptor sets, each with one buffer descriptor
-        if (vkAllocateDescriptorSets(device_, &allocInfo, descriptorSets_.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate descriptor sets!");
-        }
-
-        // configure the descriptor sets we just allocated
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = uniformBuffers_[i];
-            bufferInfo.offset = 0;
-            // we could also use VK_WHOLE_SIZE here as
-            // we overwrite the whole buffer
-            bufferInfo.range = sizeof(buffer::UniformBufferObject);
-
-            VkWriteDescriptorSet descriptorWrite{};
-            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrite.dstSet = descriptorSets_[i];
-            descriptorWrite.dstBinding = 0;
-            // descriptors could be array, here it is not
-            // so the index is 0
-            descriptorWrite.dstArrayElement = 0;
-            // specify the type of decriptor ... again :(
-            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            // in case of an array, use only 1. Not it is starting at dstArrayElement
-            descriptorWrite.descriptorCount = 1;
-            descriptorWrite.pBufferInfo = &bufferInfo;
-            descriptorWrite.pImageInfo = nullptr; // Optional
-            descriptorWrite.pTexelBufferView = nullptr; // Optional
-
-            // accepts two kind of array:
-            // VkWriteDescriptorSet and an array of VkCopyDescriptorSet
-            vkUpdateDescriptorSets(device_, 1, &descriptorWrite, 0, nullptr);
-        }
+        buffer::createDescriptorSets(
+            device_,
+            MAX_FRAMES_IN_FLIGHT,
+            uniformBuffers_,
+            descriptorPool_,
+            descriptorSetLayout_,
+            descriptorSets_
+        );
     }
-
 
     void initVulkan() {
         device::printExtensions();

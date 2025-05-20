@@ -124,6 +124,16 @@ void createBuffer(
     vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 }
 
+/**
+ * We're going to copy new data to the uniform buffer every frame,
+ * so it doesn't really make any sense to have a staging buffer.
+ * It would just add extra overhead in this case and likely degrade performance instead of improving it.
+ * We should have multiple buffers,
+ * because multiple frames may be in flight at the same time and we don't want to update the buffer
+ * in preparation of the next frame while a previous one is still reading from it! Thus, we need
+ * to have as many uniform buffers as we have frames in flight, and write to a uniform buffer
+ * that is not currently being read by the GPU
+ */
 void createUniformBuffers(
     VkPhysicalDevice physicalDevice,
     VkDevice logicalDevice,
@@ -131,6 +141,29 @@ void createUniformBuffers(
     std::vector<VkBuffer>& uniformBuffers,
     std::vector<VkDeviceMemory>& uniformBuffersMemory,
     std::vector<void*>& uniformBuffersMapped
+);
+
+/**
+ * Descriptor sets can't be created directly, they must be allocated from a pool like command buffers
+ */
+void createDescriptorPool(
+    VkDevice logicalDevice,
+    int maxFramesInFlight,
+    VkDescriptorPool& descriptorPool
+);
+
+/**
+ * The descriptor layout describes the type of descriptors that can be bound.
+ * Here we're going to create a descriptor set for each VkBuffer resource to bind
+ * it to the uniform buffer descriptor.
+ */
+void createDescriptorSets(
+    VkDevice logicalDevice,
+    int maxFramesInFlight,
+    const std::vector<VkBuffer>& uniformBuffers,
+    const VkDescriptorPool& descriptorPool,
+    VkDescriptorSetLayout descriptorSetLayout,
+    std::vector<VkDescriptorSet>& descriptorSets
 );
 
 }
