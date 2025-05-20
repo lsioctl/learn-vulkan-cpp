@@ -16,6 +16,21 @@ enum Type {
     Index
 };
 
+/**
+ * The data in the matrices is binary compatible with the way 
+ * the shader expects it, so we can later just memcpy a UniformBufferObject to a VkBuffer.
+ * 
+ * alignas is to ensure proper memory alignment with Vulkan
+ * here for the 3 matricies the default will be OK
+ * but beeing explicit could avoid gotchas with more complicated
+ * or nested structs
+ */
+struct UniformBufferObject {
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+};
+
 void bindBuffer(
     VkPhysicalDevice physicalDevice,
     VkDevice logicalDevice,
@@ -108,5 +123,14 @@ void createBuffer(
     vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
     vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 }
+
+void createUniformBuffers(
+    VkPhysicalDevice physicalDevice,
+    VkDevice logicalDevice,
+    int maxFramesInFlight,
+    std::vector<VkBuffer>& uniformBuffers,
+    std::vector<VkDeviceMemory>& uniformBuffersMemory,
+    std::vector<void*>& uniformBuffersMapped
+);
 
 }

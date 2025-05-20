@@ -157,4 +157,45 @@ void copyBuffer(
     vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
 }
 
+/**
+ * We're going to copy new data to the uniform buffer every frame,
+ * so it doesn't really make any sense to have a staging buffer.
+ * It would just add extra overhead in this case and likely degrade performance instead of improving it.
+ * We should have multiple buffers,
+ * because multiple frames may be in flight at the same time and we don't want to update the buffer
+ * in preparation of the next frame while a previous one is still reading from it! Thus, we need
+ * to have as many uniform buffers as we have frames in flight, and write to a uniform buffer
+ * that is not currently being read by the GPU
+ */
+void createUniformBuffers(
+    VkPhysicalDevice physicalDevice,
+    VkDevice logicalDevice,
+    int maxFramesInFlight,
+    std::vector<VkBuffer>& uniformBuffers,
+    std::vector<VkDeviceMemory>& uniformBuffersMemory,
+    std::vector<void*>& uniformBuffersMapped
+) {
+    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+    uniformBuffers.resize(maxFramesInFlight);
+    uniformBuffersMemory.resize(maxFramesInFlight);
+    uniformBuffersMapped.resize(maxFramesInFlight);
+
+    for (size_t i = 0; i < maxFramesInFlight; i++) {
+        buffer::bindBuffer(
+            physicalDevice,
+            logicalDevice,
+            bufferSize,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            uniformBuffers[i],
+            uniformBuffersMemory[i]);
+
+        // The buffer stays mapped the whole application time
+        // as maping has a cost, it is best to avoid doing it every time
+        // this is called "persistent mapping"
+        vkMapMemory(logicalDevice, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+    }
+}
+
 }

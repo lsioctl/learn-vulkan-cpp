@@ -99,20 +99,7 @@ void processInput(GLFWwindow *window, Camera& camera, float delta_time) {
 
 
 
-/**
- * The data in the matrices is binary compatible with the way 
- * the shader expects it, so we can later just memcpy a UniformBufferObject to a VkBuffer.
- * 
- * alignas is to ensure proper memory alignment with Vulkan
- * here for the 3 matricies the default will be OK
- * but beeing explicit could avoid gotchas with more complicated
- * or nested structs
- */
-struct UniformBufferObject {
-    alignas(16) glm::mat4 model;
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-};
+
 
 class HelloTriangleApplication {
 public:
@@ -475,38 +462,15 @@ private:
         );
     }
 
-    /**
-     * We're going to copy new data to the uniform buffer every frame,
-     * so it doesn't really make any sense to have a staging buffer.
-     * It would just add extra overhead in this case and likely degrade performance instead of improving it.
-     * We should have multiple buffers,
-     * because multiple frames may be in flight at the same time and we don't want to update the buffer
-     * in preparation of the next frame while a previous one is still reading from it! Thus, we need
-     * to have as many uniform buffers as we have frames in flight, and write to a uniform buffer
-     * that is not currently being read by the GPU
-     */
     void createUniformBuffers() {
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
-        uniformBuffers_.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMemory_.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMapped_.resize(MAX_FRAMES_IN_FLIGHT);
-
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            buffer::bindBuffer(
-                physicalDevice_,
-                device_,
-                bufferSize,
-                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                uniformBuffers_[i],
-                uniformBuffersMemory_[i]);
-
-            // The buffer stays mapped the whole application time
-            // as maping has a cost, it is best to avoid doing it every time
-            // this is called "persistent mapping"
-            vkMapMemory(device_, uniformBuffersMemory_[i], 0, bufferSize, 0, &uniformBuffersMapped_[i]);
-        }
+       buffer::createUniformBuffers(
+        physicalDevice_,
+        device_,
+        MAX_FRAMES_IN_FLIGHT,
+        uniformBuffers_,
+        uniformBuffersMemory_,
+        uniformBuffersMapped_
+       );
     }
 
     void createCommandBuffers() {
@@ -654,7 +618,7 @@ private:
     }
 
     void updateUniformBuffer(uint32_t currentImage) {
-        UniformBufferObject ubo{};
+        buffer::UniformBufferObject ubo{};
 
         // Model matrix
         // Used to transform local (object coordinates) to world coordinates
@@ -841,14 +805,14 @@ private:
             throw std::runtime_error("failed to allocate descriptor sets!");
         }
 
-        // configure the desciptor sets we just allocated
+        // configure the descriptor sets we just allocated
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = uniformBuffers_[i];
             bufferInfo.offset = 0;
             // we could also use VK_WHOLE_SIZE here as
             // we overwrite the whole buffer
-            bufferInfo.range = sizeof(UniformBufferObject);
+            bufferInfo.range = sizeof(buffer::UniformBufferObject);
 
             VkWriteDescriptorSet descriptorWrite{};
             descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -869,8 +833,6 @@ private:
             // VkWriteDescriptorSet and an array of VkCopyDescriptorSet
             vkUpdateDescriptorSets(device_, 1, &descriptorWrite, 0, nullptr);
         }
-
-        
     }
 
 
