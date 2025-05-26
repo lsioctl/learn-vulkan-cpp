@@ -16,6 +16,9 @@ enum Type {
     Index
 };
 
+/** returns the memoryType index */
+uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties);
+
 /**
  * The data in the matrices is binary compatible with the way 
  * the shader expects it, so we can later just memcpy a UniformBufferObject to a VkBuffer.

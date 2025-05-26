@@ -6,6 +6,8 @@
             "command": "/usr/bin/g++",
             "args": [
                 "-fdiagnostics-color=always",
+                "-I",
+                "${fileDirname}/thirdparties/include",
                 "-g",
                 "device.cpp",
                 "swapchain.cpp",
@@ -16,6 +18,7 @@
                 "camera.cpp",
                 "buffer.cpp",
                 "commandbuffer.cpp",
+                "texture.cpp",
                 "${file}",
                 "-o",
                 "${fileDirname}/build/${fileBasenameNoExtension}",
