@@ -30,12 +30,20 @@ sudo apt install libxxf86vm-dev libxi-dev
 Note: missing validation layers (commented out because I had issues with apt) so:
 
 ```bash
-sudo apt install vulkan-validationlayers-dev
+sudo apt-get install vulkan-validationlayers
 ```
 
 ## Note on my Linux (no nvidia driver)
 
 `vkcube` runs on embedded intel GPU
+
+On another laptop with nvidia driver it is OK though
+
+## glslc
+
+Download from github README
+
+Update the `env` copied from `env.example` in shaders folder
 
 ## Coding style
 
