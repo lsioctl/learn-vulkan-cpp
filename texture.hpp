@@ -6,6 +6,13 @@
 
 namespace texture {
 
-void createTextureImage(VkPhysicalDevice physicalDevice, VkDevice logicalDevice);
+void createTextureImage(
+    VkPhysicalDevice physicalDevice,
+    VkDevice logicalDevice,
+    VkCommandPool commandPool,
+    VkQueue graphicsQueue,
+    VkImage textureImage,
+    VkDeviceMemory textureImageMemory
+);
 
 }
