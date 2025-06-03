@@ -261,8 +261,8 @@ void createTextureImage(
     VkDevice logicalDevice,
     VkCommandPool commandPool,
     VkQueue graphicsQueue,
-    VkImage textureImage,
-    VkDeviceMemory textureImageMemory
+    VkImage& textureImage,
+    VkDeviceMemory& textureImageMemory
 ) {
     const char* texturePath = "textures/statue-1275469_1280.jpg";
 

@@ -11,8 +11,8 @@ void createTextureImage(
     VkDevice logicalDevice,
     VkCommandPool commandPool,
     VkQueue graphicsQueue,
-    VkImage textureImage,
-    VkDeviceMemory textureImageMemory
+    VkImage& textureImage,
+    VkDeviceMemory& textureImageMemory
 );
 
 }
