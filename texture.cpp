@@ -44,9 +44,6 @@ void transitionImageLayout(
     barrier.subresourceRange.levelCount = 1;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
-    
-    barrier.srcAccessMask = 0; // TODO
-    barrier.dstAccessMask = 0; // TODO
 
     /**
      * There are two transitions we need to handle:
@@ -224,7 +221,7 @@ void bindImage(
      */
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     // TODO: is it safe as parameters ?
-    imageInfo.usage = properties;
+    imageInfo.usage = usage;
     // only one queue (graphics)
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     // for multisampling
@@ -245,7 +242,7 @@ void bindImage(
     allocInfo.memoryTypeIndex = buffer::findMemoryType(
         physicalDevice,
         memRequirements.memoryTypeBits,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        properties
     );
 
     if (vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
