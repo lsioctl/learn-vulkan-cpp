@@ -6,7 +6,7 @@
 Camera::Camera() :
     position_{glm::vec3(0.0f, 0.0f,  3.0f)},
     front_{glm::vec3(0.0f, 0.0f, -1.0f)},
-    up_{glm::vec3(0.0f, 1.0f,  0.0f)},
+    up_{glm::vec3(0.0f, -1.0f,  0.0f)},
     first_mouse_event_{false},
     pitch_{0.},
     // camera points toward negative z-axis, so 90 clockwise
