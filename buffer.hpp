@@ -159,6 +159,7 @@ void createDescriptorPool(
  * A descriptor is a way for shaders to freely access resources like buffers and images.
  * We will use it for uniforms (uniforms exist to avoid copy for exemple a view model projection
  * matric for each fram in a vertex buffer)
+ * and for textures
  */
 void createDescriptorSetLayout(
     VkDevice logicalDevice,
@@ -169,6 +170,9 @@ void createDescriptorSetLayout(
  * The descriptor layout describes the type of descriptors that can be bound.
  * Here we're going to create a descriptor set for each VkBuffer resource to bind
  * it to the uniform buffer descriptor.
+ * 
+ * Legacy function to avoid creating a buffer2.hpp file, it will not be used starting
+ * hello_triangle_11.cpp
  */
 void createDescriptorSets(
     VkDevice logicalDevice,
@@ -176,6 +180,20 @@ void createDescriptorSets(
     const std::vector<VkBuffer>& uniformBuffers,
     const VkDescriptorPool& descriptorPool,
     VkDescriptorSetLayout descriptorSetLayout,
+    std::vector<VkDescriptorSet>& descriptorSets
+);
+
+/**
+ * Same as createDescriptorSets but it includes also combined image sampler
+ */
+void createDescriptorSets2(
+    VkDevice logicalDevice,
+    int maxFramesInFlight,
+    const std::vector<VkBuffer>& uniformBuffers,
+    const VkDescriptorPool& descriptorPool,
+    VkDescriptorSetLayout descriptorSetLayout,
+    VkImageView textureImageView,
+    VkSampler textureSampler,
     std::vector<VkDescriptorSet>& descriptorSets
 );
 

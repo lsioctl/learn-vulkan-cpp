@@ -23,7 +23,7 @@
 #include "device.hpp"
 #include "swapchain2.hpp"
 #include "pipeline3.hpp"
-#include "vertex.hpp"
+#include "vertex2.hpp"
 #include "camera.hpp"
 #include "buffer.hpp"
 #include "texture.hpp"
@@ -52,8 +52,8 @@ const std::vector<const char*> DEVICE_EXTENSIONS = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
-const auto VERT_FILE = "./shaders/spirv/shader3.vert.spirv";
-const auto FRAG_FILE = "./shaders/spirv/shader1.frag.spirv";
+const auto VERT_FILE = "./shaders/spirv/shader4.vert.spirv";
+const auto FRAG_FILE = "./shaders/spirv/shader2.frag.spirv";
 
 void errorCallback(int error, const char* description)
 {
@@ -62,11 +62,12 @@ void errorCallback(int error, const char* description)
 
 // interleaving vertex attributes
 // attributes combined in one array of vertices
-const std::vector<vertex::Vertex> vertices = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+// 0, 0 top left corner Texture
+const std::vector<vertex2::Vertex> vertices = {
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
 };
 
 // possible to use uint16_t or uint32_t
