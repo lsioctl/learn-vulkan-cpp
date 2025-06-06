@@ -229,7 +229,10 @@ bool isPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surf
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentationModes.empty();
     }
 
-    return indices.isComplete() && extensionsSupported && swapChainAdequate;
+    VkPhysicalDeviceFeatures supportedFeatures;
+    vkGetPhysicalDeviceFeatures(physicalDevice, &supportedFeatures);
+
+    return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
 }
 
 bool checkValidationLayerSupport(const std::vector<const char*>& validation_layers) {
@@ -338,6 +341,8 @@ void createLogicalDevice(
     // like geometry shaders
     // for now VK_FALSE
     VkPhysicalDeviceFeatures deviceFeatures{};
+    // anisotropic filtering is an optional feature
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

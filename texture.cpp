@@ -354,4 +354,49 @@ void createTextureImageView(VkDevice logicalDevice, VkImage textureImage, VkImag
     textureImageView = image::createImageView(logicalDevice, textureImage, VK_FORMAT_R8G8B8A8_SRGB);
 }
 
+void createTextureSample(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkSampler& textureSampler) {
+
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    // could be used for example for floors and walls
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    // no reason to use something else except for performance reason
+    // be wary that it is actually an optional device feature
+    // so physical device must be checked properly about this
+    samplerInfo.anisotropyEnable = VK_TRUE;
+
+    // retriev the maximum quality of the GPU
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+
+    samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+
+    // when accessing beyond the image with clamp to border
+    // can be black, white or transparent
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+
+    // use normalized coordinate 0,1 0,1
+    // instead of 0,texWidth 0,texHeight
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+    // if true used for filter (compare to a value)
+    // this could be used for percentage-colser filtering on shadow maps
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+    // mipmaping, we'll see later
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipLodBias = 0.0f;
+    samplerInfo.minLod = 0.0f;
+    samplerInfo.maxLod = 0.0f;
+
+    if (vkCreateSampler(logicalDevice, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create texture sampler!");
+    }
+}
+
 }
