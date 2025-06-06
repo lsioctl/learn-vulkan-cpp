@@ -7,6 +7,7 @@
 
 #include "swapchain2.hpp"
 #include "device.hpp"
+#include "image.hpp"
 
 namespace swapchain2 {
 
@@ -123,7 +124,7 @@ void createSwapChain(
     GLFWwindow* window,
     VkPhysicalDevice physicalDevice,
     VkSurfaceKHR surface,
-    VkDevice logical_device,
+    VkDevice logicalDevice,
     VkSwapchainKHR* pSwapChain,
     std::vector<VkImage>& swapChainImages,
     VkFormat* pSwapChainImageFormat,
@@ -186,20 +187,20 @@ void createSwapChain(
     // for now we will use only one swap chain
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(logical_device, &createInfo, nullptr, pSwapChain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, pSwapChain) != VK_SUCCESS) {
         throw std::runtime_error("failed to create swap chain!");
     }
 
-    vkGetSwapchainImagesKHR(logical_device, *pSwapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(logicalDevice, *pSwapChain, &imageCount, nullptr);
     swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(logical_device, *pSwapChain, &imageCount, swapChainImages.data());
+    vkGetSwapchainImagesKHR(logicalDevice, *pSwapChain, &imageCount, swapChainImages.data());
 
     *pSwapChainImageFormat = surfaceFormat.format;
     *pSwapChainExtent = extent;
 }
 
 void createImageViews(
-    VkDevice logical_device,
+    VkDevice logicalDevice,
     const std::vector<VkImage>& swapChainImages,
     VkFormat swapChainImageFormat,
     std::vector<VkImageView>& swapChainImageViews
@@ -208,37 +209,13 @@ void createImageViews(
     swapChainImageViews.resize(swapChainImageSize);
 
     for (size_t i = 0; i < swapChainImageSize; i++) {
-        VkImageViewCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = swapChainImages[i];
-        // could be 1D, 2D, 3D Textures and cube maps
-        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = swapChainImageFormat;
-        // The components field allows you to swizzle the color channels around.
-        // we will stick to the default
-        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        // 1 layer as we are not playing with stereographic 3D application
-        // 1 view by eye
-        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        createInfo.subresourceRange.baseMipLevel = 0;
-        createInfo.subresourceRange.levelCount = 1;
-        createInfo.subresourceRange.baseArrayLayer = 0;
-        // 1 layer as we are not playing with stereographic 3D application
-        // (1 view by eye) by accessing different layers
-        createInfo.subresourceRange.layerCount = 1;
-
-        if (vkCreateImageView(logical_device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image views!");
-        }
+        swapChainImageViews[i] = image::createImageView(logicalDevice, swapChainImages[i], swapChainImageFormat);
     }
 }
 
 
 void createFramebuffers(
-    VkDevice logical_device,
+    VkDevice logicalDevice,
     const std::vector<VkImageView>& swapChainImageViews,
     VkExtent2D swapChainExtent,
     VkRenderPass renderPass,
@@ -265,7 +242,7 @@ void createFramebuffers(
         // our swapchain images are single images, so nb of layers is 1
         framebufferInfo.layers = 1;
 
-        if (vkCreateFramebuffer(logical_device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+        if (vkCreateFramebuffer(logicalDevice, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create framebuffer!");
         }
     }

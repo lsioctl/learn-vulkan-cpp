@@ -10,6 +10,7 @@
                 "${fileDirname}/thirdparties/include",
                 "-g",
                 "device.cpp",
+                "image.cpp",
                 "swapchain.cpp",
                 "swapchain2.cpp",
                 "pipeline.cpp",

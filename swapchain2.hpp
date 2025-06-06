@@ -67,7 +67,7 @@ void createSwapChain(
     GLFWwindow* window,
     VkPhysicalDevice physicalDevice,
     VkSurfaceKHR surface,
-    VkDevice logical_device,
+    VkDevice logicalDevice,
     VkSwapchainKHR* pSwapChain,
     std::vector<VkImage>& swapChainImages,
     VkFormat* pSwapChainImageFormat,
@@ -75,7 +75,7 @@ void createSwapChain(
 );
 
 void createImageViews(
-    VkDevice logical_device,
+    VkDevice logicalDevice,
     const std::vector<VkImage>& swapChainImages,
     VkFormat swapChainImageFormat,
     std::vector<VkImageView>& swapChainImageViews
@@ -98,7 +98,7 @@ void createImageViews(
  * at drawing time.
  */
 void createFramebuffers(
-    VkDevice logical_device,
+    VkDevice logicalDevice,
     const std::vector<VkImageView>& swapChainImageViews,
     VkExtent2D swapChainExtent,
     VkRenderPass renderPass,

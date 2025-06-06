@@ -7,6 +7,7 @@
 #include "texture.hpp"
 #include "buffer.hpp"
 #include "commandbuffer.hpp"
+#include "image.hpp"
 
 namespace texture {
 
@@ -349,5 +350,8 @@ void createTextureImage(
 
 }
 
+void createTextureImageView(VkDevice logicalDevice, VkImage textureImage, VkImageView& textureImageView) {
+    textureImageView = image::createImageView(logicalDevice, textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+}
 
 }
