@@ -354,7 +354,7 @@ void createTextureImageView(VkDevice logicalDevice, VkImage textureImage, VkImag
     textureImageView = image::createImageView(logicalDevice, textureImage, VK_FORMAT_R8G8B8A8_SRGB);
 }
 
-void createTextureSample(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkSampler& textureSampler) {
+void createTextureSampler(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkSampler& textureSampler) {
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

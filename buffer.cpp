@@ -296,8 +296,8 @@ void createDescriptorSets2(
     const std::vector<VkBuffer>& uniformBuffers,
     const VkDescriptorPool& descriptorPool,
     VkDescriptorSetLayout descriptorSetLayout,
-    VkImageView textureImageView,
-    VkSampler textureSampler,
+    const VkImageView& textureImageView,
+    const VkSampler& textureSampler,
     std::vector<VkDescriptorSet>& descriptorSets
 ) {
     // one descriptor set for each frame in flight,
@@ -329,17 +329,6 @@ void createDescriptorSets2(
         imageInfo.imageView = textureImageView;
         imageInfo.sampler = textureSampler;
 
-        VkWriteDescriptorSet descriptorWrite{};
-        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.dstSet = descriptorSets[i];
-        descriptorWrite.dstBinding = 0;
-        
-        descriptorWrite.dstArrayElement = 0;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        
-        descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
-        
         std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

@@ -38,6 +38,6 @@ void createTextureImageView(VkDevice logicalDevice, VkImage textureImage, VkImag
  * interface to extract colors from a texture. It can be applied to any image you want, whether it is 1D, 2D or 3D.
  * This is different from many older APIs, which combined texture images and filtering into a single state.
  */
-void createTextureSample(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkSampler& textureSampler);
+void createTextureSampler(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkSampler& textureSampler);
 
 }

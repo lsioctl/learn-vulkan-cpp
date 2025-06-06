@@ -22,7 +22,7 @@
 
 #include "device.hpp"
 #include "swapchain2.hpp"
-#include "pipeline3.hpp"
+#include "pipeline4.hpp"
 #include "vertex2.hpp"
 #include "camera.hpp"
 #include "buffer.hpp"
@@ -172,6 +172,8 @@ private:
     Camera camera_;
     VkImage textureImage_;
     VkDeviceMemory textureImageMemory_;
+    VkImageView textureImageView_;
+    VkSampler textureSampler_;
 
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
@@ -315,7 +317,7 @@ private:
     }
 
     void createRenderPass() {
-        pipeline3::createRenderPass(
+        pipeline4::createRenderPass(
             device_,
             swapChainImageFormat_,
             renderPass_
@@ -330,7 +332,7 @@ private:
     }
 
     void createGraphicsPipeline() {
-        pipeline3::createGraphicsPipeline(
+        pipeline4::createGraphicsPipeline(
             VERT_FILE,
             FRAG_FILE,
             device_,
@@ -755,12 +757,14 @@ private:
     }
 
     void createDescriptorSets() {
-        buffer::createDescriptorSets(
+        buffer::createDescriptorSets2(
             device_,
             MAX_FRAMES_IN_FLIGHT,
             uniformBuffers_,
             descriptorPool_,
             descriptorSetLayout_,
+            textureImageView_,
+            textureSampler_,
             descriptorSets_
         );
     }
@@ -773,6 +777,22 @@ private:
             graphicsQueue_,
             textureImage_,
             textureImageMemory_
+        );
+    }
+
+    void createTextureImageView() {
+        texture::createTextureImageView(
+            device_,
+            textureImage_,
+            textureImageView_
+        );
+    }
+
+    void createTextureSampler() {
+        texture::createTextureSampler(
+            physicalDevice_,
+            device_,
+            textureSampler_
         );
     }
 
@@ -797,10 +817,12 @@ private:
         createIndexBuffer();
         createUniformBuffers();
         createDescriptorPool();
-        createDescriptorSets();
         createCommandBuffers();
         createSyncObjects();
         createTextureImage();
+        createTextureImageView();
+        createTextureSampler();
+        createDescriptorSets();
     }
 
     void mainLoop() {
@@ -836,6 +858,10 @@ private:
 
     void cleanup() {
         cleanupSwapChain();
+
+        vkDestroySampler(device_, textureSampler_, nullptr);
+
+        vkDestroyImageView(device_, textureImageView_, nullptr);
 
         vkDestroyImage(device_, textureImage_, nullptr);
         vkFreeMemory(device_, textureImageMemory_, nullptr);

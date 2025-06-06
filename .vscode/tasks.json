@@ -16,6 +16,7 @@
                 "pipeline.cpp",
                 "pipeline2.cpp",
                 "pipeline3.cpp",
+                "pipeline4.cpp",
                 "camera.cpp",
                 "buffer.cpp",
                 "commandbuffer.cpp",

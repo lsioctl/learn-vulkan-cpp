@@ -192,8 +192,8 @@ void createDescriptorSets2(
     const std::vector<VkBuffer>& uniformBuffers,
     const VkDescriptorPool& descriptorPool,
     VkDescriptorSetLayout descriptorSetLayout,
-    VkImageView textureImageView,
-    VkSampler textureSampler,
+    const VkImageView& textureImageView,
+    const VkSampler& textureSampler,
     std::vector<VkDescriptorSet>& descriptorSets
 );
 
