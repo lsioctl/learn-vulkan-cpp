@@ -89,7 +89,25 @@ void createLogicalDevice(
     VkQueue* pPresentQueue
 );
 
+/**
+ * Unlike the texture image, we don't necessarily need a specific format, because we won't 
+ * be directly accessing the texels from the program. It just needs to have a reasonable 
+ * accuracy, at least 24 bits is common in real-world applications. 
+ * There are several formats that fit this requirement:
+    VK_FORMAT_D32_SFLOAT: 32-bit float for depth
+    VK_FORMAT_D32_SFLOAT_S8_UINT: 32-bit signed float for depth and 8 bit stencil component
+    VK_FORMAT_D24_UNORM_S8_UINT: 24-bit float for depth and 8 bit stencil component
+ */
+VkFormat findSupportedDepthImageFormat(
+    VkPhysicalDevice physicalDevice,
+    const std::vector<VkFormat>& candidates,
+    VkImageTiling tiling,
+    VkFormatFeatureFlags features
+);
 
-
+/**
+ * does the depth image format has a stencil component
+ */
+bool hasStencilComponent(VkFormat format);
 
 }

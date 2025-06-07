@@ -11,8 +11,10 @@
                 "-g",
                 "device.cpp",
                 "image.cpp",
+                "image2.cpp",
                 "swapchain.cpp",
                 "swapchain2.cpp",
+                "swapchain3.cpp",
                 "pipeline.cpp",
                 "pipeline2.cpp",
                 "pipeline3.cpp",
@@ -22,7 +24,11 @@
                 "buffer.cpp",
                 "buffer2.cpp",
                 "commandbuffer.cpp",
-                "texture.cpp",
+                // commented out because of stb
+                // and I handle in very ugly way versionning :D
+                // but it doesn't matter for now
+                // "texture.cpp",
+                "texture2.cpp",
                 "${file}",
                 "-o",
                 "${fileDirname}/build/${fileBasenameNoExtension}",
