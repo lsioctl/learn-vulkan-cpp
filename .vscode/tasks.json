@@ -28,7 +28,8 @@
                 // and I handle in very ugly way versionning :D
                 // but it doesn't matter for now
                 // "texture.cpp",
-                "texture2.cpp",
+                // "texture2.cpp",
+                "texture3.cpp",
                 "${file}",
                 "-o",
                 "${fileDirname}/build/${fileBasenameNoExtension}",
