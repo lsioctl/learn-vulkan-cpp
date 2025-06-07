@@ -22,7 +22,7 @@
 
 #include "device.hpp"
 #include "swapchain2.hpp"
-#include "pipeline4.hpp"
+#include "pipeline5.hpp"
 #include "vertex3.hpp"
 #include "camera.hpp"
 #include "buffer2.hpp"
@@ -98,9 +98,6 @@ void processInput(GLFWwindow *window, Camera& camera, float delta_time) {
         camera.updatePosition(Camera::Movement::Right, delta_time);
     }
 }
-
-
-
 
 
 class HelloTriangleApplication {
@@ -317,7 +314,7 @@ private:
     }
 
     void createRenderPass() {
-        pipeline4::createRenderPass(
+        pipeline5::createRenderPass(
             device_,
             swapChainImageFormat_,
             renderPass_
@@ -332,7 +329,7 @@ private:
     }
 
     void createGraphicsPipeline() {
-        pipeline4::createGraphicsPipeline(
+        pipeline5::createGraphicsPipeline(
             VERT_FILE,
             FRAG_FILE,
             device_,

@@ -1,8 +1,8 @@
 #include <stdexcept>
 #include <cstring>
+#include <array>
 
 #include "buffer2.hpp"
-#include "vertex3.hpp"
 #include "commandbuffer.hpp"
 
 namespace buffer2
