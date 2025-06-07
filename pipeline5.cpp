@@ -50,6 +50,7 @@ VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice logica
 void createRenderPass(
     VkDevice logical_device,
     VkFormat swapChainImageFormat,
+    VkFormat depthFormat,
     VkRenderPass& renderPass
 ) {
     /**
@@ -81,24 +82,61 @@ void createRenderPass(
         */
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    // only one subpass for now
     VkAttachmentReference colorAttachmentRef{};
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentDescription depthAttachment{};
+    depthAttachment.format = depthFormat;
+    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    // This time we don't care about storing the depth data (storeOp), 
+    // because it will not be used after drawing has finished. 
+    // This may allow the hardware to perform additional optimizations. 
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    // we don't care about the previous depth contents,
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentRef{};
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    // only one subpass for now
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     // The index of the attachment in this array is directly referenced from the 
     // fragment shader with the layout(location = 0) out vec4 outColor directive
     subpass.pColorAttachments = &colorAttachmentRef;
+    // no attachmentcount Unlike color attachments, a subpass can only use a single depth (+stencil) attachment.
+    // It wouldn't really make any sense to do depth tests on multiple buffers.
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
+    // TODO: certainly related to the fact that we do the transitionslaout in the render path
+    // for depth image ?
+    // make sure that there is no conflict between the transitioning of the depth image and it being cleared 
+    // as part of its load operation. The depth image is first accessed in the early fragment test pipeline 
+    // stage and because we have a load operation that clears, we should specify the access mask for writes.
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    renderPassInfo.pAttachments = attachments.data();
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
 
     if (vkCreateRenderPass(logical_device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
@@ -316,6 +354,26 @@ void createGraphicsPipeline(
         throw std::runtime_error("failed to create pipeline layout!");
     }
 
+    // enable the depth testing in the pipeline
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    // the depth of new fragments should be compared to the depth buffer to see if they should be discarded
+    depthStencil.depthTestEnable = VK_TRUE;
+    // the new depth of fragments that pass the depth test should actually be written to the depth buffer.
+    depthStencil.depthWriteEnable = VK_TRUE;
+    // We're sticking to the convention of lower depth = closer, so the depth of new fragments should be less.
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    // this allows you to only keep fragments that fall within the specified depth range.
+    // We won't be using this functionality.
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.minDepthBounds = 0.0f; // Optional
+    depthStencil.maxDepthBounds = 1.0f; // Optional
+    // we also won't be using in this tutorial. If you want to use these operations,
+    // then you will have to make sure that the format of the depth/stencil image contains a stencil component.
+    depthStencil.stencilTestEnable = VK_FALSE;
+    depthStencil.front = {}; // Optional
+    depthStencil.back = {}; // Optional
+
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.stageCount = 2;
@@ -329,6 +387,7 @@ void createGraphicsPipeline(
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = pipelineLayout;
+    pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.renderPass = renderPass;
     // index
     pipelineInfo.subpass = 0;

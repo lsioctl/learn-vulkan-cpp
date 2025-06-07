@@ -183,6 +183,7 @@ private:
     VkImageView textureImageView_;
     VkSampler textureSampler_;
     VkImage depthImage_;
+    VkFormat depthFormat_;
     VkDeviceMemory depthImageMemory_;
     VkImageView depthImageView_;
 
@@ -331,6 +332,7 @@ private:
         pipeline5::createRenderPass(
             device_,
             swapChainImageFormat_,
+            depthFormat_,
             renderPass_
         );
     }
@@ -360,6 +362,7 @@ private:
             device_,
             swapChainImageViews_,
             swapChainExtent_,
+            depthImageView_,
             renderPass_,
             swapChainFramebuffers_
         );
@@ -515,11 +518,20 @@ private:
         // define the size of the render area
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = swapChainExtent_;
+        
+        std::array<VkClearValue, 2> clearValues{};
+        // Note that the order of clearValues should be identical to the order of your attachments.
+        // TODO: still coupling here as I moved the code to pipeline
         // for VK_ATTACHMENT_LOAD_OP_CLEAR, which we used as load operation for the color attachment
         // black with 100% opacity
-        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
+        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        // The range of depths in the depth buffer is 0.0 to 1.0 in Vulkan, where 1.0 lies at the 
+        // far view plane and 0.0 at the near view plane. The initial value at each point in the 
+        // depth buffer should be the furthest possible depth, which is 1.0.
+        clearValues[1].depthStencil = {1.0f, 0};
+
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
 
         // no secondary command buffer so no VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -808,7 +820,7 @@ private:
     }
 
     void createDepthResources() {
-        auto depthFormat = device::findSupportedDepthImageFormat(
+        depthFormat_ = device::findSupportedDepthImageFormat(
             physicalDevice_,
             {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
             VK_IMAGE_TILING_OPTIMAL,
@@ -821,7 +833,7 @@ private:
             device_,
             swapChainExtent_.width,
             swapChainExtent_.height,
-            depthFormat,
+            depthFormat_,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -829,7 +841,10 @@ private:
             depthImageMemory_
         );
 
-        depthImageView_ = image2::createImageView(device_, depthImage_, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        depthImageView_ = image2::createImageView(device_, depthImage_, depthFormat_, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+        // We don't need to explicitly transition the layout of the image to a depth attachment because
+        // we'll take care of this in the render pass.
     }
 
 
@@ -845,6 +860,7 @@ private:
         createLogicalDevice();
         createSwapChain();
         createImageViews();
+        createDepthResources();
         createRenderPass();
         createDescriptorSetLayout();
         createGraphicsPipeline();
@@ -902,6 +918,10 @@ private:
 
         vkDestroyImage(device_, textureImage_, nullptr);
         vkFreeMemory(device_, textureImageMemory_, nullptr);
+
+        vkDestroyImageView(device_, depthImageView_, nullptr);
+        vkDestroyImage(device_, depthImage_, nullptr);
+        vkFreeMemory(device_, depthImageMemory_, nullptr);
 
         vkDestroyBuffer(device_, vertexBuffer_, nullptr);
         vkFreeMemory(device_, vertexBufferMemory_, nullptr);

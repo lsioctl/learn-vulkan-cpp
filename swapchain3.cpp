@@ -4,6 +4,7 @@
 #include <limits> // Necessary for std::numeric_limits
 #include <algorithm> // Necessary for std::clamp
 #include <vector>
+#include <array>
 
 #include "swapchain3.hpp"
 #include "device.hpp"
@@ -218,6 +219,7 @@ void createFramebuffers(
     VkDevice logicalDevice,
     const std::vector<VkImageView>& swapChainImageViews,
     VkExtent2D swapChainExtent,
+    VkImageView depthImageView,
     VkRenderPass renderPass,
     std::vector<VkFramebuffer>& swapChainFramebuffers
     
@@ -226,17 +228,20 @@ void createFramebuffers(
     swapChainFramebuffers.resize(swapChainImageViewsSize);
 
     for (size_t i = 0; i < swapChainImageViewsSize; i++) {
-        // in our case we have only one attachment by framebuffer: 
-        // the color attachment
-        VkImageView attachments[] = {
-            swapChainImageViews[i]
+        std::array<VkImageView, 2> attachments = {
+            // The color attachment differs for every swap chain image,
+            swapChainImageViews[i],
+            // but the same depth image can be used by all of them
+            // because only a single subpass is running at the same time due to our semaphores.
+            // TODO: code smell here, asuming this single subpass running ?
+            depthImageView
         };
 
         VkFramebufferCreateInfo framebufferInfo{};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());;
+        framebufferInfo.pAttachments = attachments.data();
         framebufferInfo.width = swapChainExtent.width;
         framebufferInfo.height = swapChainExtent.height;
         // our swapchain images are single images, so nb of layers is 1

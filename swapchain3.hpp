@@ -101,6 +101,7 @@ void createFramebuffers(
     VkDevice logicalDevice,
     const std::vector<VkImageView>& swapChainImageViews,
     VkExtent2D swapChainExtent,
+    VkImageView depthImageView,
     VkRenderPass renderPass,
     std::vector<VkFramebuffer>& swapChainFramebuffers
     

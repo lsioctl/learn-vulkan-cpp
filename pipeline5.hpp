@@ -10,6 +10,7 @@ namespace pipeline5 {
 void createRenderPass(
     VkDevice logical_device,
     VkFormat swapChainImageFormat,
+    VkFormat depthFormat,
     VkRenderPass& renderPass
 );
 
