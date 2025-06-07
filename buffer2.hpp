@@ -7,7 +7,7 @@
 #include "GLFW/glfw3.h"
 #include "glm/glm.hpp"
 
-namespace buffer
+namespace buffer2
 {
 
 enum Type {
@@ -168,24 +168,9 @@ void createDescriptorSetLayout(
 /**
  * The descriptor layout describes the type of descriptors that can be bound.
  * Here we're going to create a descriptor set for each VkBuffer resource to bind
- * it to the uniform buffer descriptor.
- * 
- * Legacy function to avoid creating a buffer2.hpp file, it will not be used starting
- * hello_triangle_11.cpp
+ * it to the uniform buffer descriptor and the combined image sampler.
  */
 void createDescriptorSets(
-    VkDevice logicalDevice,
-    int maxFramesInFlight,
-    const std::vector<VkBuffer>& uniformBuffers,
-    const VkDescriptorPool& descriptorPool,
-    VkDescriptorSetLayout descriptorSetLayout,
-    std::vector<VkDescriptorSet>& descriptorSets
-);
-
-/**
- * Same as createDescriptorSets but it includes also combined image sampler
- */
-void createDescriptorSets2(
     VkDevice logicalDevice,
     int maxFramesInFlight,
     const std::vector<VkBuffer>& uniformBuffers,
@@ -195,5 +180,6 @@ void createDescriptorSets2(
     const VkSampler& textureSampler,
     std::vector<VkDescriptorSet>& descriptorSets
 );
+
 
 }

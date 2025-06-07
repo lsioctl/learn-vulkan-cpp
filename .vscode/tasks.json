@@ -19,6 +19,7 @@
                 "pipeline4.cpp",
                 "camera.cpp",
                 "buffer.cpp",
+                "buffer2.cpp",
                 "commandbuffer.cpp",
                 "texture.cpp",
                 "${file}",

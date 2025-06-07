@@ -1,11 +1,11 @@
 #include <stdexcept>
 #include <cstring>
-#include <array>
 
-#include "buffer.hpp"
+#include "buffer2.hpp"
+#include "vertex3.hpp"
 #include "commandbuffer.hpp"
 
-namespace buffer
+namespace buffer2
 {
 
 uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -137,7 +137,7 @@ void createUniformBuffers(
     uniformBuffersMapped.resize(maxFramesInFlight);
 
     for (size_t i = 0; i < maxFramesInFlight; i++) {
-        buffer::bindBuffer(
+        bindBuffer(
             physicalDevice,
             logicalDevice,
             bufferSize,
@@ -244,59 +244,6 @@ void createDescriptorSets(
     const std::vector<VkBuffer>& uniformBuffers,
     const VkDescriptorPool& descriptorPool,
     VkDescriptorSetLayout descriptorSetLayout,
-    std::vector<VkDescriptorSet>& descriptorSets
-) {
-    // one descriptor set for each frame in flight,
-    // all with the same layout
-    std::vector<VkDescriptorSetLayout> layouts(maxFramesInFlight, descriptorSetLayout);
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(maxFramesInFlight);
-    allocInfo.pSetLayouts = layouts.data();
-
-    descriptorSets.resize(maxFramesInFlight);
-    // this calls allocate descriptor sets, each with one buffer descriptor
-    if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-
-    // configure the descriptor sets we just allocated
-    for (size_t i = 0; i < maxFramesInFlight; i++) {
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uniformBuffers[i];
-        bufferInfo.offset = 0;
-        // we could also use VK_WHOLE_SIZE here as
-        // we overwrite the whole buffer
-        bufferInfo.range = sizeof(buffer::UniformBufferObject);
-
-        VkWriteDescriptorSet descriptorWrite{};
-        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.dstSet = descriptorSets[i];
-        descriptorWrite.dstBinding = 0;
-        // descriptors could be array, here it is not
-        // so the index is 0
-        descriptorWrite.dstArrayElement = 0;
-        // specify the type of decriptor ... again :(
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        // in case of an array, use only 1. Not it is starting at dstArrayElement
-        descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
-        descriptorWrite.pImageInfo = nullptr; // Optional
-        descriptorWrite.pTexelBufferView = nullptr; // Optional
-
-        // accepts two kind of array:
-        // VkWriteDescriptorSet and an array of VkCopyDescriptorSet
-        vkUpdateDescriptorSets(logicalDevice, 1, &descriptorWrite, 0, nullptr);
-    }
-}
-
-void createDescriptorSets2(
-    VkDevice logicalDevice,
-    int maxFramesInFlight,
-    const std::vector<VkBuffer>& uniformBuffers,
-    const VkDescriptorPool& descriptorPool,
-    VkDescriptorSetLayout descriptorSetLayout,
     const VkImageView& textureImageView,
     const VkSampler& textureSampler,
     std::vector<VkDescriptorSet>& descriptorSets
@@ -323,7 +270,7 @@ void createDescriptorSets2(
         bufferInfo.offset = 0;
         // we could also use VK_WHOLE_SIZE here as
         // we overwrite the whole buffer
-        bufferInfo.range = sizeof(buffer::UniformBufferObject);
+        bufferInfo.range = sizeof(UniformBufferObject);
 
         VkDescriptorImageInfo imageInfo{};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
