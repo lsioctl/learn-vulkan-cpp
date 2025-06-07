@@ -379,6 +379,10 @@ private:
             vkDestroyFramebuffer(device_, framebuffer, nullptr);
         }
 
+        vkDestroyImageView(device_, depthImageView_, nullptr);
+        vkDestroyImage(device_, depthImage_, nullptr);
+        vkFreeMemory(device_, depthImageMemory_, nullptr);
+
         // Validation Layer error if we do this before destroying the surface
         vkDestroySwapchainKHR(device_, swapChain_, nullptr);
     }
@@ -417,6 +421,7 @@ private:
 
         createSwapChain();
         createImageViews();
+        createDepthResources();
         createFramebuffers();
     }
 
@@ -918,10 +923,6 @@ private:
 
         vkDestroyImage(device_, textureImage_, nullptr);
         vkFreeMemory(device_, textureImageMemory_, nullptr);
-
-        vkDestroyImageView(device_, depthImageView_, nullptr);
-        vkDestroyImage(device_, depthImage_, nullptr);
-        vkFreeMemory(device_, depthImageMemory_, nullptr);
 
         vkDestroyBuffer(device_, vertexBuffer_, nullptr);
         vkFreeMemory(device_, vertexBufferMemory_, nullptr);
