@@ -673,7 +673,8 @@ private:
         // Used to transform local (object coordinates) to world coordinates
         // always start with identity
         glm::mat4 cube_model_matrix{glm::mat4(1.0f)};
-        auto position = glm::vec3(0.0f,  0.0f, 0.0f);
+        // be wary we have an inversion on y axis (see later on the projection matrix)
+        auto position = glm::vec3(0.0f,  0.5f, -3.0f);
         ubo.model = glm::translate(cube_model_matrix, position);
         ubo.model = glm::rotate(ubo.model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.model = glm::rotate(ubo.model, glm::radians(90.0f), glm::vec3(0.0f, -1.0f, 0.0f));

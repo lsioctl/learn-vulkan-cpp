@@ -6,6 +6,7 @@
 Camera::Camera() :
     position_{glm::vec3(0.0f, 0.0f,  3.0f)},
     front_{glm::vec3(0.0f, 0.0f, -1.0f)},
+    // y axis inversion compared to OpenGL (so glm)
     up_{glm::vec3(0.0f, -1.0f,  0.0f)},
     first_mouse_event_{false},
     pitch_{0.},
