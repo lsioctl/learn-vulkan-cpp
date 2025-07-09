@@ -675,6 +675,8 @@ private:
         glm::mat4 cube_model_matrix{glm::mat4(1.0f)};
         auto position = glm::vec3(0.0f,  0.0f, 0.0f);
         ubo.model = glm::translate(cube_model_matrix, position);
+        ubo.model = glm::rotate(ubo.model, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.model = glm::rotate(ubo.model, glm::radians(90.0f), glm::vec3(0.0f, -1.0f, 0.0f));
 
         ubo.view = camera_.getUpdatedViewMatrix();
 
