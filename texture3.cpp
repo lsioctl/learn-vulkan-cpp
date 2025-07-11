@@ -4,8 +4,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#include "texture2.hpp"
-#include "buffer.hpp"
+#include "texture3.hpp"
+#include "buffer2.hpp"
 #include "commandbuffer.hpp"
 #include "image2.hpp"
 
@@ -240,7 +240,7 @@ void bindImageMemory(
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = buffer::findMemoryType(
+    allocInfo.memoryTypeIndex = buffer2::findMemoryType(
         physicalDevice,
         memRequirements.memoryTypeBits,
         properties
@@ -278,7 +278,7 @@ void createTextureImage(
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
 
-    buffer::bindBuffer(
+    buffer2::bindBuffer(
         physicalDevice,
         logicalDevice,
         imageSize,

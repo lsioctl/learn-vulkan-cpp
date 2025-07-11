@@ -3,7 +3,7 @@
 #include <set>
 
 #include "device.hpp"
-#include "swapchain.hpp"
+#include "swapchain3.hpp"
 
 namespace device {
 
@@ -225,7 +225,7 @@ bool isPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surf
     bool swapChainAdequate = false;
 
     if (extensionsSupported) {
-        swapchain::SwapChainSupportDetails swapChainSupport = swapchain::querySwapChainSupport(physicalDevice, surface);
+        swapchain3::SwapChainSupportDetails swapChainSupport = swapchain3::querySwapChainSupport(physicalDevice, surface);
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentationModes.empty();
     }
 
