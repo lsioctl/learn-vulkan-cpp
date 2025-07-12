@@ -9,6 +9,7 @@
 #include <cstdint> // Necessary for uint32_t
 #include <fstream>
 #include <chrono>
+#include <memory>
 
 // Let GLFW include by itslef vulkan headers
 #define GLFW_INCLUDE_VULKAN
@@ -91,6 +92,11 @@ void processInput(GLFWwindow *window, Camera& camera, float delta_time) {
     }
 }
 
+struct DestroyglfwWin{
+    void operator()(GLFWwindow* ptr){
+         glfwDestroyWindow(ptr);
+    }
+};
 
 class HelloTriangleApplication {
 public:
@@ -102,7 +108,7 @@ public:
     }
 
 private:
-    GLFWwindow* window_;
+    std::unique_ptr<GLFWwindow, DestroyglfwWin> window_;
     VkInstance instance_;
     VkDebugUtilsMessengerEXT debugMessenger_;
     /**
@@ -173,7 +179,7 @@ private:
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
         // let glfw handle this for us
-        if (glfwCreateWindowSurface(instance_, window_, nullptr, &surface_) != VK_SUCCESS) {
+        if (glfwCreateWindowSurface(instance_, window_.get(), nullptr, &surface_) != VK_SUCCESS) {
             throw std::runtime_error("failed to create window surface!");
         }
     }
@@ -184,7 +190,7 @@ private:
 
     void createSwapChain() {
         swapchain3::createSwapChain(
-            window_,
+            window_.get(),
             physicalDevice_,
             surface_,
             device_,
@@ -217,11 +223,11 @@ private:
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-        window_ = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+        window_ = std::unique_ptr<GLFWwindow, DestroyglfwWin>(glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr));
         // this allow to store an arbitrary pointer, and we need this, litteraly :D
         // for mouse callback and framebufferResizeCallback
-        glfwSetWindowUserPointer(window_, this);
-        glfwSetFramebufferSizeCallback(window_, framebufferResizeCallback);
+        glfwSetWindowUserPointer(window_.get(), this);
+        glfwSetFramebufferSizeCallback(window_.get(), framebufferResizeCallback);
         // std::cout << window_ << std::endl;
     }
 
@@ -440,10 +446,10 @@ private:
         // custom handling of minimization:
         // we wait until it is over
         int width = 0, height = 0;
-        glfwGetFramebufferSize(window_, &width, &height);
+        glfwGetFramebufferSize(window_.get(), &width, &height);
 
         while (width == 0 || height == 0) {
-            glfwGetFramebufferSize(window_, &width, &height);
+            glfwGetFramebufferSize(window_.get(), &width, &height);
             glfwWaitEvents();
         }
 
@@ -929,9 +935,9 @@ private:
         // cursor enabled while I find a way to escape capturing
         // without escape button
         // glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        glfwSetCursorPosCallback(window_, mouseCallback);
+        glfwSetCursorPosCallback(window_.get(), mouseCallback);
 
-        while (!glfwWindowShouldClose(window_)) {
+        while (!glfwWindowShouldClose(window_.get())) {
             glfwPollEvents();
             
             // delta_time
@@ -939,7 +945,7 @@ private:
             auto delta_time = current_frame_time - last_frame_time;
             last_frame_time = current_frame_time;
     
-            processInput(window_, camera_, delta_time);
+            processInput(window_.get(), camera_, delta_time);
             // std::cout << delta_time << std::endl;
             // std::cout << glm::to_string(camera_.getPosition()) << std::endl;
             // std::cout << glm::to_string(camera_.getFront()) << std::endl;
@@ -1012,8 +1018,6 @@ private:
 
         // As we do not use RAII for now, destroy is needed
         vkDestroyInstance(instance_, nullptr);
-
-        glfwDestroyWindow(window_);
 
         glfwTerminate();
     }
