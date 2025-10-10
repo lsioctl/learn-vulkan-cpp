@@ -115,14 +115,25 @@ void createRenderPass(
     // It wouldn't really make any sense to do depth tests on multiple buffers.
     subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
-    // TODO: certainly related to the fact that we do the transitionslaout in the render path
-    // for depth image ?
-    // make sure that there is no conflict between the transitioning of the depth image and it being cleared 
-    // as part of its load operation. The depth image is first accessed in the early fragment test pipeline 
-    // stage and because we have a load operation that clears, we should specify the access mask for writes.
+
+    /**
+     * There are two built-in dependencies that take care of the transition at the start of the render pass and at the end of the render pass, 
+     * but the former does not occur at the right time. It assumes that the transition occurs at the start of the pipeline, 
+     * but we haven't acquired the image yet at that point! 
+     * There are two ways to deal with this problem. 
+     * We could change the waitStages for the imageAvailableSemaphore to VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT to ensure that the render passes 
+     * don't begin until the image is available, or we can make the render pass wait for the VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT stage
+     * 
+     * For the depth image:
+     * make sure that there is no conflict between the transitioning of the depth image and it being cleared 
+     * as part of its load operation. The depth image is first accessed in the early fragment test pipeline 
+     * stage and because we have a load operation that clears, we should specify the access mask for writes.
+     */
+    // 
     VkSubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
+    // this makes the render pass waiting for those pipeline stages
     dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.srcAccessMask = 0;
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;

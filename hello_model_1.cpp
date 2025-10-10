@@ -252,7 +252,7 @@ private:
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appInfo;
         
-        // create an additional debuger for vkCreateInstance and vkDestroyInstance
+        // create an additional debugger for vkCreateInstance and vkDestroyInstance
         // TODO: a bit unclear to me why this is written by the doc:
         /***
          * The debugCreateInfo variable is placed outside the if statement to ensure that 
@@ -767,23 +767,6 @@ private:
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
-        // Subpass dependency
-        // Suppasses are for transition
-        // we have only one subpass but still it needs to be handled
-        // TODO: read more about it, I have enough for now and want to draw
-        // that first triangle :D
-        VkSubpassDependency dependency{};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.srcAccessMask = 0;
-        /** the following refer to the dependecies in renderPass
-         * renderPassInfo.dependencyCount = 1;
-        renderPassInfo.pDependencies = &dependency;
-         */
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
         // Presentation
         // The last step of drawing a frame is submitting the result back 
         // to the swap chain to have it eventually show up on the screen
@@ -805,9 +788,6 @@ private:
         /**
          * It is important to do this after vkQueuePresentKHR to ensure that the semaphores are in a consistent 
          * state, otherwise a signaled semaphore may never be properly waited upon
-         * 
-         * TODO: looks not very DRY with the calls on top of drawFrame
-         * why not using vkAcquireNextImageKHR result and early return instead ? 
          */
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized_) {
             framebufferResized_ = false;

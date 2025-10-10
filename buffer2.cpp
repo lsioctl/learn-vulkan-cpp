@@ -147,7 +147,7 @@ void createUniformBuffers(
             uniformBuffersMemory[i]);
 
         // The buffer stays mapped the whole application time
-        // as maping has a cost, it is best to avoid doing it every time
+        // as mapping has a cost, it is best to avoid doing it every time
         // this is called "persistent mapping"
         vkMapMemory(logicalDevice, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
     }
