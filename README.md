@@ -33,17 +33,19 @@ Note: missing validation layers (commented out because I had issues with apt) so
 sudo apt-get install vulkan-validationlayers
 ```
 
-## Note on my Linux (no nvidia driver)
-
-`vkcube` runs on embedded intel GPU
-
-On another laptop with nvidia driver it is OK though
-
 ## glslc
 
 Download from github README
 
 Update the `env` copied from `env.example` in shaders folder
+
+## shader compilation
+
+go to the shaders folder, with glslc installed and configured anr run:
+
+```bash
+./compile.sh
+```
 
 ## Coding style
 
@@ -79,4 +81,47 @@ In vertex shader:
 
 ```glsl
 layout(set = 0, binding = 0) uniform UniformBufferObject { ... }
+```
+
+
+### RAII and more
+
+Another doc from Vulkan, with:
+
+
+https://docs.vulkan.org/tutorial/latest/00_Introduction.html
+
+
+> Compared to the original tutorial, this version of the tutorial is teaching up-to-date concepts:
+>
+>  Vulkan 1.4 as a baseline
+>
+>  Dynamic rendering instead of render passes
+>
+>   Timeline semaphores
+>
+>   Slang as the primary shading language
+>
+>   Modern C++ (20) with modules
+>
+>   Vulkan-Hpp with RAII
+
+
+
+### Smart pointers and C API
+
+```c++
+// From SO https://stackoverflow.com/questions/35793672/use-unique-ptr-with-glfwwindow
+// because the error was not easy to read
+struct DestroyglfwWin{
+    void operator()(GLFWwindow* ptr){
+         glfwDestroyWindow(ptr);
+    }
+};
+
+// class member declaration, can't assign value at this point
+std::unique_ptr<GLFWwindow, DestroyglfwWin> window_;
+
+// somehere in a init window function
+window_ = std::unique_ptr<GLFWwindow, DestroyglfwWin>(glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr));
 ```
