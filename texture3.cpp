@@ -22,7 +22,8 @@ void transitionImageLayout(
     VkImage image,
     VkFormat format,
     VkImageLayout oldLayout,
-    VkImageLayout newLayout
+    VkImageLayout newLayout,
+    uint32_t mipLevels
 ) {
     VkCommandBuffer commandBuffer = commandbuffer::beginSingleTimeCommands(logicalDevice, commandPool);
 
@@ -42,7 +43,7 @@ void transitionImageLayout(
     barrier.image = image;
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.levelCount = mipLevels;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
 
@@ -163,6 +164,7 @@ void bindImageMemory(
     VkDevice logicalDevice,
     uint32_t width,
     uint32_t height,
+    uint32_t mipLevels,
     VkFormat format,
     VkImageTiling tiling,
     VkImageUsageFlags usage,
@@ -186,8 +188,7 @@ void bindImageMemory(
     imageInfo.extent.width = static_cast<uint32_t>(width);
     imageInfo.extent.height = static_cast<uint32_t>(height);
     imageInfo.extent.depth = 1;
-    // no mipmapping for now
-    imageInfo.mipLevels = 1;
+    imageInfo.mipLevels = mipLevels;
     // not an array
     imageInfo.arrayLayers = 1;
     // we should use the same format for the texels as the pixels in the buffer, 
@@ -254,7 +255,7 @@ void bindImageMemory(
     vkBindImageMemory(logicalDevice, image, imageMemory, 0);
 }
 
-void createTextureImage(
+uint32_t createTextureImage(
     VkPhysicalDevice physicalDevice,
     VkDevice logicalDevice,
     VkCommandPool commandPool,
@@ -270,6 +271,15 @@ void createTextureImage(
     stbi_uc* pixels = stbi_load(path, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     // The pixels are laid out row by row with 4 bytes per pixel in the case of STBI_rgb_alpha
     VkDeviceSize imageSize = texWidth * texHeight * 4;
+
+
+    /**
+     * This calculates the number of levels in the mip chain. The max function selects the largest dimension. 
+     * The log2 function calculates how many times that dimension can be divided by 2. 
+     * The floor function handles cases where the largest dimension is not a power of 2. 
+     * 1 is added so that the original image has a mip level.
+     */
+    auto mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
     if (!pixels) {
         throw std::runtime_error("failed to load texture image!");
@@ -300,6 +310,7 @@ void createTextureImage(
         logicalDevice,
         texWidth,
         texHeight,
+        mipLevels,
         VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -318,7 +329,8 @@ void createTextureImage(
         // We can only do that because we don't care of the format
         // before the copy operation
         VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        mipLevels
     );
 
     copyBufferToImage(
@@ -340,17 +352,19 @@ void createTextureImage(
         textureImage,
         VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        mipLevels
     );
 
     // clean up the stagin buffer
     vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
     vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 
+    return mipLevels;
 }
 
-void createTextureImageView(VkDevice logicalDevice, VkImage textureImage, VkImageView& textureImageView) {
-    textureImageView = image2::createImageView(logicalDevice, textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+void createTextureImageView(VkDevice logicalDevice, VkImage textureImage, VkImageView& textureImageView, uint32_t mipLevels) {
+    textureImageView = image2::createImageView(logicalDevice, textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 }
 
 void createTextureSampler(VkPhysicalDevice physicalDevice, VkDevice logicalDevice, VkSampler& textureSampler) {

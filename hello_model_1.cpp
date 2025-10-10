@@ -166,6 +166,7 @@ private:
     std::vector<VkDescriptorSet> descriptorSets_;
     Camera camera_;
     VkImage textureImage_;
+    uint32_t mipLevels_;
     VkDeviceMemory textureImageMemory_;
     VkImageView textureImageView_;
     VkSampler textureSampler_;
@@ -363,7 +364,8 @@ private:
             device_,
             swapChainImages_,
             swapChainImageFormat_,
-            swapChainImageViews_
+            swapChainImageViews_,
+            mipLevels_
         );
     }
 
@@ -821,7 +823,7 @@ private:
     }
 
     void createTextureImage() {
-        texture3::createTextureImage(
+        mipLevels_ = texture3::createTextureImage(
             physicalDevice_,
             device_,
             commandPool_,
@@ -836,7 +838,8 @@ private:
         texture3::createTextureImageView(
             device_,
             textureImage_,
-            textureImageView_
+            textureImageView_,
+            mipLevels_
         );
     }
 
@@ -862,6 +865,7 @@ private:
             device_,
             swapChainExtent_.width,
             swapChainExtent_.height,
+            mipLevels_,
             depthFormat_,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -870,7 +874,7 @@ private:
             depthImageMemory_
         );
 
-        depthImageView_ = image2::createImageView(device_, depthImage_, depthFormat_, VK_IMAGE_ASPECT_DEPTH_BIT);
+        depthImageView_ = image2::createImageView(device_, depthImage_, depthFormat_, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels_);
 
         // We don't need to explicitly transition the layout of the image to a depth attachment because
         // we'll take care of this in the render pass.

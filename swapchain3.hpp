@@ -78,7 +78,8 @@ void createImageViews(
     VkDevice logicalDevice,
     const std::vector<VkImage>& swapChainImages,
     VkFormat swapChainImageFormat,
-    std::vector<VkImageView>& swapChainImageViews
+    std::vector<VkImageView>& swapChainImageViews,
+    uint32_t mipLevels
 );
 
 /**

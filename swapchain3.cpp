@@ -204,13 +204,14 @@ void createImageViews(
     VkDevice logicalDevice,
     const std::vector<VkImage>& swapChainImages,
     VkFormat swapChainImageFormat,
-    std::vector<VkImageView>& swapChainImageViews
+    std::vector<VkImageView>& swapChainImageViews,
+    uint32_t mipLevels
 ) {
     auto swapChainImageSize = swapChainImages.size();
     swapChainImageViews.resize(swapChainImageSize);
 
     for (size_t i = 0; i < swapChainImageSize; i++) {
-        swapChainImageViews[i] = image2::createImageView(logicalDevice, swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+        swapChainImageViews[i] = image2::createImageView(logicalDevice, swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
     }
 }
 

@@ -12,12 +12,14 @@ namespace texture3 {
  * I changed the name because it just does bindImageMemory
  * TODO: maybe I am wrong ?
  * TODO: move outside texture as it may be used also for depth buffer, maybe in image.hpp ?
+ * 
  */
 void bindImageMemory(
     VkPhysicalDevice physicalDevice,
     VkDevice logicalDevice,
     uint32_t width,
     uint32_t height,
+    uint32_t mipLevels,
     VkFormat format,
     VkImageTiling tiling,
     VkImageUsageFlags usage,
@@ -26,7 +28,8 @@ void bindImageMemory(
     VkDeviceMemory& imageMemory
 );
 
-void createTextureImage(
+/** returns the mipLevel of the image, calculated from its size */
+uint32_t createTextureImage(
     VkPhysicalDevice physicalDevice,
     VkDevice logicalDevice,
     VkCommandPool commandPool,
@@ -37,7 +40,7 @@ void createTextureImage(
 );
 
 // images are used through imageView rather than directly
-void createTextureImageView(VkDevice logicalDevice, VkImage textureImage, VkImageView& textureImageView);
+void createTextureImageView(VkDevice logicalDevice, VkImage textureImage, VkImageView& textureImageView, uint32_t mipLevels);
 
 /**
  * It is possible for shaders to read texels directly from images, but that is not very common when
