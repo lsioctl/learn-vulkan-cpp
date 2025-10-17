@@ -256,14 +256,24 @@ void bindImageMemory(
 }
 
 void generateMipmaps(
+    VkPhysicalDevice physicalDevice,
     VkDevice logicalDevice,
     VkCommandPool commandPool,
     VkQueue graphicsQueue,
     VkImage image,
+    VkFormat imageFormat,
     int32_t texWidth,
     int32_t texHeight,
     uint32_t mipLevels
 ) {
+    // Check if image format supports linear blitting
+    VkFormatProperties formatProperties;
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, imageFormat, &formatProperties);
+
+    if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
+        throw std::runtime_error("texture image format does not support linear blitting!");
+    }
+
     VkCommandBuffer commandBuffer = commandbuffer::beginSingleTimeCommands(logicalDevice, commandPool);
 
     VkImageMemoryBarrier barrier{};
@@ -471,7 +481,7 @@ uint32_t createTextureImage(
     //     mipLevels
     // );
 
-    generateMipmaps(logicalDevice, commandPool, graphicsQueue, textureImage, texWidth, texHeight, mipLevels);
+    generateMipmaps(physicalDevice,logicalDevice, commandPool, graphicsQueue, textureImage, VK_FORMAT_R8G8B8A8_SRGB, texWidth, texHeight, mipLevels);
 
     // clean up the stagin buffer
     vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);

@@ -89,6 +89,9 @@ In vertex shader:
 layout(set = 0, binding = 0) uniform UniformBufferObject { ... }
 ```
 
+### mipmaps
+
+> It should be noted that it is uncommon in practice to generate the mipmap levels at runtime anyway. Usually they are pregenerated and stored in the texture file alongside the base level to improve loading speed Implementing resizing in software and loading multiple levels from a file is left as an exercise to the reader.
 
 ### RAII and more
 
