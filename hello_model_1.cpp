@@ -366,7 +366,7 @@ private:
             swapChainImages_,
             swapChainImageFormat_,
             swapChainImageViews_,
-            mipLevels_
+            1
         );
     }
 
@@ -866,7 +866,7 @@ private:
             device_,
             swapChainExtent_.width,
             swapChainExtent_.height,
-            mipLevels_,
+            1,
             depthFormat_,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -875,7 +875,7 @@ private:
             depthImageMemory_
         );
 
-        depthImageView_ = image2::createImageView(device_, depthImage_, depthFormat_, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels_);
+        depthImageView_ = image2::createImageView(device_, depthImage_, depthFormat_, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
         // We don't need to explicitly transition the layout of the image to a depth attachment because
         // we'll take care of this in the render pass.

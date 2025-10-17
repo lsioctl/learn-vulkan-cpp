@@ -519,11 +519,11 @@ void createTextureSampler(VkPhysicalDevice physicalDevice, VkDevice logicalDevic
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 
-    // mipmaping, we'll see later
+    // mipmaping
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 0.0f;
+    samplerInfo.minLod = 0.0f; // Optional
+    samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+    samplerInfo.mipLodBias = 0.0f; // Optional
 
     if (vkCreateSampler(logicalDevice, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture sampler!");
