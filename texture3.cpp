@@ -255,6 +255,116 @@ void bindImageMemory(
     vkBindImageMemory(logicalDevice, image, imageMemory, 0);
 }
 
+void generateMipmaps(
+    VkDevice logicalDevice,
+    VkCommandPool commandPool,
+    VkQueue graphicsQueue,
+    VkImage image,
+    int32_t texWidth,
+    int32_t texHeight,
+    uint32_t mipLevels
+) {
+    VkCommandBuffer commandBuffer = commandbuffer::beginSingleTimeCommands(logicalDevice, commandPool);
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.image = image;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    barrier.subresourceRange.levelCount = 1;
+
+    int32_t mipWidth = texWidth;
+    int32_t mipHeight = texHeight;
+
+    for (uint32_t i = 1; i < mipLevels; i++) {
+        /**
+         * First, we transition level i - 1 to VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL. 
+         * This transition will wait for level i - 1 to be filled, either from the previous blit command, 
+         * or from vkCmdCopyBufferToImage. The current blit command will wait on this transition.
+         */
+        barrier.subresourceRange.baseMipLevel = i - 1;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+
+
+        vkCmdPipelineBarrier(commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier);
+
+        VkImageBlit blit{};
+        blit.srcOffsets[0] = { 0, 0, 0 };
+        blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = i - 1;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.dstOffsets[0] = { 0, 0, 0 };
+        blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = i;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = 1;
+
+        /**
+         * Note that textureImage is used for both the srcImage and dstImage parameter. 
+         * This is because we're blitting between different levels of the same image. 
+         * The source mip level was just transitioned to VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL 
+         * and the destination level is still in VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL from createTextureImage.
+         */
+        vkCmdBlitImage(commandBuffer,
+            image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1, &blit,
+            // enable interpolation
+            VK_FILTER_LINEAR);
+
+        /**
+         * This barrier transitions mip level i - 1 to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL. 
+         * This transition waits on the current blit command to finish. All sampling operations will wait on this transition to finish.
+         */
+        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        vkCmdPipelineBarrier(commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier);
+
+        if (mipWidth > 1) mipWidth /= 2;
+        if (mipHeight > 1) mipHeight /= 2;
+    }
+
+    /**
+     * This barrier transitions the last mip level from VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
+     * This wasn't handled by the loop, since the last mip level is never blitted from.
+     */
+    barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(commandBuffer,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier);
+
+
+    commandbuffer::endAndExecuteSingleTimeCommands(logicalDevice, commandPool, graphicsQueue, commandBuffer);
+}
+
 uint32_t createTextureImage(
     VkPhysicalDevice physicalDevice,
     VkDevice logicalDevice,
@@ -313,7 +423,8 @@ uint32_t createTextureImage(
         mipLevels,
         VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        // SRC bit added for the mipmaps generation
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         textureImage,
         textureImageMemory
@@ -343,18 +454,24 @@ uint32_t createTextureImage(
         static_cast<uint32_t>(texHeight)
     );
 
-    // To be able to start sampling from the texture image in the shader, 
-    // we need one last transition to prepare it for shader access
-    transitionImageLayout(
-        logicalDevice,
-        commandPool,
-        graphicsQueue,
-        textureImage,
-        VK_FORMAT_R8G8B8A8_SRGB,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        mipLevels
-    );
+    // Commented out at this will be handled by generatemipmaps
+    // This will leave each level of the texture image in VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL. 
+    // Each level will be transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL after the blit command reading from it is finished.
+    // // To be able to start sampling from the texture image in the shader, 
+    // // we need one last transition to prepare it for shader access
+    // transitionImageLayout(
+    //     logicalDevice,
+    //     commandPool,
+    //     graphicsQueue,
+    //     textureImage,
+    //     VK_FORMAT_R8G8B8A8_SRGB,
+    //     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    //     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+
+    //     mipLevels
+    // );
+
+    generateMipmaps(logicalDevice, commandPool, graphicsQueue, textureImage, texWidth, texHeight, mipLevels);
 
     // clean up the stagin buffer
     vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
@@ -362,6 +479,7 @@ uint32_t createTextureImage(
 
     return mipLevels;
 }
+
 
 void createTextureImageView(VkDevice logicalDevice, VkImage textureImage, VkImageView& textureImageView, uint32_t mipLevels) {
     textureImageView = image2::createImageView(logicalDevice, textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);

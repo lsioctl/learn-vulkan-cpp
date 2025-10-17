@@ -55,6 +55,12 @@ At first wanted to use google's style, but to mostly stick with the tutorial (an
 * `_` suffix for private var
 * snakecase for functions
 
+## Concepts learned
+
+### Image layout transition
+
+either explicitely with pipeline memory barriers or implicitely during render passes
+
 ## Real life recommandations
 
 ### Staging buffer

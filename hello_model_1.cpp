@@ -34,6 +34,7 @@
 #include "buffer2.hpp"
 #include "texture3.hpp"
 #include "image2.hpp"
+#include "commandbuffer.hpp"
 
 #ifdef NDEBUG
     const bool ENABLE_VALIDATION_LAYERS = false;
@@ -880,7 +881,7 @@ private:
         // we'll take care of this in the render pass.
     }
 
-
+    
     void initVulkan() {
         device::printExtensions();
         createInstance();
