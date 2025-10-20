@@ -78,6 +78,8 @@ void pickPhysicalDevice(
     VkPhysicalDevice* pPhysicalDevice
 );
 
+VkSampleCountFlagBits getMaxUsableSampleCount(VkPhysicalDevice physicalDevice);
+
 void createLogicalDevice(
     VkPhysicalDevice physicalDevice,
     VkSurfaceKHR surface,

@@ -165,6 +165,7 @@ void bindImageMemory(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevels,
+    VkSampleCountFlagBits msaaSampleCount,
     VkFormat format,
     VkImageTiling tiling,
     VkImageUsageFlags usage,
@@ -189,6 +190,7 @@ void bindImageMemory(
     imageInfo.extent.height = static_cast<uint32_t>(height);
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = mipLevels;
+    imageInfo.samples = msaaSampleCount;
     // not an array
     imageInfo.arrayLayers = 1;
     // we should use the same format for the texels as the pixels in the buffer, 
@@ -227,7 +229,7 @@ void bindImageMemory(
     // only one queue (graphics)
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     // for multisampling
-    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.samples = msaaSampleCount;
     imageInfo.flags = 0; // Optional
 
     if (vkCreateImage(logicalDevice, &imageInfo, nullptr, &image) != VK_SUCCESS) {
@@ -381,6 +383,7 @@ uint32_t createTextureImage(
     VkCommandPool commandPool,
     VkQueue graphicsQueue,
     const char* path,
+    VkSampleCountFlagBits msaaSampleCount,
     VkImage& textureImage,
     VkDeviceMemory& textureImageMemory
 ) {
@@ -431,6 +434,7 @@ uint32_t createTextureImage(
         texWidth,
         texHeight,
         mipLevels,
+        msaaSampleCount,
         VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_TILING_OPTIMAL,
         // SRC bit added for the mipmaps generation

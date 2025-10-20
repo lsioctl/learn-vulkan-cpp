@@ -20,6 +20,7 @@ void bindImageMemory(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevels,
+    VkSampleCountFlagBits msaaSampleCount,
     VkFormat format,
     VkImageTiling tiling,
     VkImageUsageFlags usage,
@@ -35,6 +36,7 @@ uint32_t createTextureImage(
     VkCommandPool commandPool,
     VkQueue graphicsQueue,
     const char* path,
+    VkSampleCountFlagBits msaaSampleCount,
     VkImage& textureImage,
     VkDeviceMemory& textureImageMemory
 );

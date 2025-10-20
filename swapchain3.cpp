@@ -221,6 +221,7 @@ void createFramebuffers(
     const std::vector<VkImageView>& swapChainImageViews,
     VkExtent2D swapChainExtent,
     VkImageView depthImageView,
+    VkImageView colorImageView,
     VkRenderPass renderPass,
     std::vector<VkFramebuffer>& swapChainFramebuffers
     
@@ -229,13 +230,15 @@ void createFramebuffers(
     swapChainFramebuffers.resize(swapChainImageViewsSize);
 
     for (size_t i = 0; i < swapChainImageViewsSize; i++) {
-        std::array<VkImageView, 2> attachments = {
-            // The color attachment differs for every swap chain image,
-            swapChainImageViews[i],
+        // Be wary !!! Orders depends on what was set in renderpass
+        std::array<VkImageView, 3> attachments = {
+            colorImageView,
             // but the same depth image can be used by all of them
             // because only a single subpass is running at the same time due to our semaphores.
             // TODO: code smell here, asuming this single subpass running ?
-            depthImageView
+            depthImageView,
+            // The color attachment differs for every swap chain image,
+            swapChainImageViews[i],
         };
 
         VkFramebufferCreateInfo framebufferInfo{};

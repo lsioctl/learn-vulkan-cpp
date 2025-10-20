@@ -103,6 +103,7 @@ void createFramebuffers(
     const std::vector<VkImageView>& swapChainImageViews,
     VkExtent2D swapChainExtent,
     VkImageView depthImageView,
+    VkImageView colorImageView,
     VkRenderPass renderPass,
     std::vector<VkFramebuffer>& swapChainFramebuffers
     

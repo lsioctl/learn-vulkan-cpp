@@ -50,6 +50,7 @@ VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice logica
 void createRenderPass(
     VkDevice logical_device,
     VkFormat swapChainImageFormat,
+    VkSampleCountFlagBits msaaSampleCount,
     VkFormat depthFormat,
     VkRenderPass& renderPass
 ) {
@@ -80,15 +81,40 @@ void createRenderPass(
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: Images to be used as destination 
         for a memory copy operation
         */
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    /** commented out for MSAA */   
+    // colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    colorAttachment.samples = msaaSampleCount;
+    // multisampled images cannot be presented directly. We first need to resolve them to a regular image
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference colorAttachmentRef{};
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    // the real attachment for color as the MSAA one is not presentable
+    VkAttachmentDescription colorAttachmentResolve{};
+    colorAttachmentResolve.format = swapChainImageFormat;
+    colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // this one will be presented to the swapchain
+    colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    /**
+     * The render pass now has to be instructed to resolve multisampled color image
+     * into regular attachment. Create a new attachment reference that will point
+     * to the color buffer which will serve as the resolve target:
+     */
+    VkAttachmentReference colorAttachmentResolveRef{};
+    colorAttachmentResolveRef.attachment = 2;
+    colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
     VkAttachmentDescription depthAttachment{};
     depthAttachment.format = depthFormat;
-    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.samples = msaaSampleCount;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     // This time we don't care about storing the depth data (storeOp), 
     // because it will not be used after drawing has finished. 
@@ -114,6 +140,8 @@ void createRenderPass(
     // no attachmentcount Unlike color attachments, a subpass can only use a single depth (+stencil) attachment.
     // It wouldn't really make any sense to do depth tests on multiple buffers.
     subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    // for MSAA
+    subpass.pResolveAttachments = &colorAttachmentResolveRef;
 
 
     /**
@@ -135,11 +163,18 @@ void createRenderPass(
     dependency.dstSubpass = 0;
     // this makes the render pass waiting for those pipeline stages
     dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.srcAccessMask = 0;
+    // changed for MSAA
+    // dependency.srcAccessMask = 0;
+    /**
+     * Since we're reusing the multisampled color image, it's necessary to update the srcAccessMask of the VkSubpassDependency.
+     * This update ensures that any write operations to the color attachment are completed before subsequent ones begin, 
+     * thus preventing write-after-write hazards that can lead to unstable rendering results:
+     */
+    dependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
+    std::array<VkAttachmentDescription, 3> attachments = {colorAttachment, depthAttachment, colorAttachmentResolve};
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
@@ -159,6 +194,7 @@ void createGraphicsPipeline(
     const char* frag_file,
     VkDevice logical_device,
     VkExtent2D swapChainExtent,
+    VkSampleCountFlagBits msaaSampleCount,
     VkRenderPass renderPass,
     const VkDescriptorSetLayout& descriptorSetLayout,
     VkPipelineLayout& pipelineLayout,
@@ -304,11 +340,10 @@ void createGraphicsPipeline(
      * than simply rendering to a higher resolution and then downscaling. 
      * Enabling it requires enabling a GPU feature.
      */
-    // For now ms is disabled
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling.rasterizationSamples = msaaSampleCount;
     multisampling.minSampleShading = 1.0f; // Optional
     multisampling.pSampleMask = nullptr; // Optional
     multisampling.alphaToCoverageEnable = VK_FALSE; // Optional

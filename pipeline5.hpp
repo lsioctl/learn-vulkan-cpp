@@ -10,6 +10,7 @@ namespace pipeline5 {
 void createRenderPass(
     VkDevice logical_device,
     VkFormat swapChainImageFormat,
+    VkSampleCountFlagBits msaaSampleCount,
     VkFormat depthFormat,
     VkRenderPass& renderPass
 );
@@ -19,6 +20,7 @@ void createGraphicsPipeline(
     const char* frag_file,
     VkDevice logical_device,
     VkExtent2D swapChainExtent,
+    VkSampleCountFlagBits msaaSampleCount,
     VkRenderPass renderPass,
     const VkDescriptorSetLayout& descriptorSetLayout,
     VkPipelineLayout& pipelineLayout,

@@ -177,6 +177,11 @@ private:
     VkImageView depthImageView_;
     std::vector<vertex3::Vertex> vertices_;
     std::vector<uint32_t> indices_;
+    // it will be updated regarding the hardware capabilities
+    VkSampleCountFlagBits msaaSampleCount_ = VK_SAMPLE_COUNT_1_BIT;
+    VkImage colorImage_;
+    VkDeviceMemory colorImageMemory_;
+    VkImageView colorImageView_;
 
     void createSurface() {
         // if the surface object is platform agnostic, its creation is not
@@ -288,13 +293,15 @@ private:
         }
     }
 
-    void pickPhysicalDevice() {
+    void pickPhysicalDeviceAndSetMSAASampleCount() {
         device::pickPhysicalDevice(
             instance_,
             surface_,
             DEVICE_EXTENSIONS,
             &physicalDevice_
         );
+
+        msaaSampleCount_ = device::getMaxUsableSampleCount(physicalDevice_);
     }
 
     void createLogicalDevice() {
@@ -374,6 +381,7 @@ private:
         pipeline5::createRenderPass(
             device_,
             swapChainImageFormat_,
+            msaaSampleCount_,
             depthFormat_,
             renderPass_
         );
@@ -392,6 +400,7 @@ private:
             FRAG_FILE,
             device_,
             swapChainExtent_,
+            msaaSampleCount_,
             renderPass_,
             descriptorSetLayout_,
             pipelineLayout_,
@@ -405,12 +414,13 @@ private:
             swapChainImageViews_,
             swapChainExtent_,
             depthImageView_,
+            colorImageView_,
             renderPass_,
             swapChainFramebuffers_
         );
     }
 
-    void cleanupSwapChain() {
+    void cleanupSwapChain() {  
         // Unlike images, imageViews have been created manually
         // so we need to destroy them
         for (auto imageView : swapChainImageViews_) {
@@ -420,6 +430,10 @@ private:
         for (auto framebuffer : swapChainFramebuffers_) {
             vkDestroyFramebuffer(device_, framebuffer, nullptr);
         }
+
+        vkDestroyImageView(device_, colorImageView_, nullptr);
+        vkDestroyImage(device_, colorImage_, nullptr);
+        vkFreeMemory(device_, colorImageMemory_, nullptr);
 
         vkDestroyImageView(device_, depthImageView_, nullptr);
         vkDestroyImage(device_, depthImage_, nullptr);
@@ -463,6 +477,7 @@ private:
 
         createSwapChain();
         createImageViews();
+        createColorResources();
         createDepthResources();
         createFramebuffers();
     }
@@ -830,6 +845,7 @@ private:
             commandPool_,
             graphicsQueue_,
             TEXTURE_PATH,
+            VK_SAMPLE_COUNT_1_BIT,
             textureImage_,
             textureImageMemory_
         );
@@ -852,6 +868,27 @@ private:
         );
     }
 
+    void createColorResources() {
+        VkFormat colorFormat = swapChainImageFormat_;
+
+        texture3::bindImageMemory(
+            physicalDevice_,
+            device_,
+            swapChainExtent_.width,
+            swapChainExtent_.height,
+            1,
+            msaaSampleCount_,
+            colorFormat,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            colorImage_,
+            colorImageMemory_
+        );
+
+        colorImageView_ = image2::createImageView(device_, colorImage_, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+    }
+
     void createDepthResources() {
         depthFormat_ = device::findSupportedDepthImageFormat(
             physicalDevice_,
@@ -867,6 +904,7 @@ private:
             swapChainExtent_.width,
             swapChainExtent_.height,
             1,
+            msaaSampleCount_,
             depthFormat_,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -890,11 +928,12 @@ private:
         // createSurface must be called before pickPhysicalDevice and LogicalDevice
         // or add a docstring ? Really the kind of hidden state I dislike with OOP
         createSurface();
-        pickPhysicalDevice();
+        pickPhysicalDeviceAndSetMSAASampleCount();
         createLogicalDevice();
         loadModel();
         createSwapChain();
         createImageViews();
+        createColorResources();
         createDepthResources();
         createRenderPass();
         createDescriptorSetLayout();
